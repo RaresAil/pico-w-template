@@ -7,6 +7,8 @@ The current features of this template. For the defaults of the features check th
 - Set TCP port.
 - Set the Wifi SSID and Password at compile time
 - JSON format for packet's data
+- AES 256 CTR encryption
+- RTC
 
 The `server.cpp` could stay untouched, for parsing the data you can just check `handler.cpp`, after the request is processed the data is sent to the handler along with the client from which you can respond back.
 
@@ -40,6 +42,11 @@ The packet format is `number_of_characters;data` e.g. `4;demo`
   #define TCP_SERVER_BUF_SIZE             2048
   #define TCP_SERVER_POLL_TIME_S          5
   #define TCP_SERVER_MAX_CLIENTS          5
+
+  // ENCRYPTION
+
+  #define AES_ENCRYPTION_KEY              "32-BYTE-KEY-IN-BASE64"
+  #define USE_ENCRYPTION                  true
 
   #endif
   ```

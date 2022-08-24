@@ -153,7 +153,15 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
   
   if (client->recv_len >= client->packet_len) {
     std::string packet((char*)client->buffer_recv, client->data_len, client->packet_len - client->data_len);
-    handle_client_response(arg, tpcb, packet);
+
+    if (USE_ENCRYPTION) {
+      printf("[Server] Decrypting packet from %s\n", client_id.c_str());
+      packet = decrypt_256_aes_ctr(packet);
+    }
+
+    if (packet != "") {
+      handle_client_response(arg, tpcb, packet);
+    }
 
     client->packet_len = -1;
     client->recv_len = 0;
