@@ -2,11 +2,15 @@
 
 The current features of this template. For the defaults of the features check the `Config` section
 
+- Auto close connection if client didn't sent any request in a specific amount of time
 - Set a specific number of simultaneous clients.
 - Max packet size in bytes.
 - Set TCP port.
 - Set the Wifi SSID and Password at compile time
 - JSON format for packet's data
+- AES 256 CTR encryption
+- PING system
+- RTC
 
 The `server.cpp` could stay untouched, for parsing the data you can just check `handler.cpp`, after the request is processed the data is sent to the handler along with the client from which you can respond back.
 
@@ -31,7 +35,9 @@ The packet format is `number_of_characters;data` e.g. `4;demo`
   #define COUNTRY_CODE_1                  'S'
 
   #define WIFI_AUTH                       CYW43_AUTH_WPA2_AES_PSK
+  #define SERIAL_NUMBER                   "any text you want"
   #define WIFI_PASSWORD                   "PASSWORD"
+  #define FIRMWARE_VERSION                "0.1.0" // Your version
   #define WIFI_SSID                       "SSID"
 
   // TCP SERVER
@@ -40,6 +46,12 @@ The packet format is `number_of_characters;data` e.g. `4;demo`
   #define TCP_SERVER_BUF_SIZE             2048
   #define TCP_SERVER_POLL_TIME_S          5
   #define TCP_SERVER_MAX_CLIENTS          5
+  #define TCP_SERVER_INACTIVE_TIME_S      35
+
+  // ENCRYPTION
+
+  #define AES_ENCRYPTION_KEY              "32-BYTES-KEY-IN-BASE64"
+  #define USE_ENCRYPTION                  true
 
   #endif
   ```

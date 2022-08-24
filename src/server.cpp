@@ -113,7 +113,7 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 
   cyw43_arch_lwip_check();
   if (p->tot_len > 0) {
-    const uint32_t now = to_ms_since_boot(get_absolute_time());
+    const u_int64_t now = get_datetime_ms();
     if (now - client->last_packet_tt > 1500) {
       client->packet_len = -1;
     }
@@ -153,7 +153,15 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
   
   if (client->recv_len >= client->packet_len) {
     std::string packet((char*)client->buffer_recv, client->data_len, client->packet_len - client->data_len);
-    handle_client_response(arg, tpcb, packet);
+
+    if (USE_ENCRYPTION) {
+      printf("[Server] Decrypting packet from %s\n", client_id.c_str());
+      packet = decrypt_256_aes_ctr(packet);
+    }
+
+    if (packet != "") {
+      handle_client_response(arg, tpcb, packet);
+    }
 
     client->packet_len = -1;
     client->recv_len = 0;
@@ -164,7 +172,23 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 }
 
 static err_t tcp_server_poll(void *arg, struct tcp_pcb *tpcb) {
-  // TODO - Implement a PING packet to check if the client is still connected
+  TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+  const std::string client_id = get_tcp_client_id(tpcb);
+  const int client_index = index_of_tcp_client(state, client_id);
+
+  try {
+    std::shared_ptr<TCP_CLIENT_T> client = (state->clients[client_index]).second;
+    const u_int64_t now = get_datetime_ms();
+    const u_int64_t diff = (now - client->last_ping) / 1000;
+    if (diff > TCP_SERVER_INACTIVE_TIME_S) {
+      printf("[Server] Client %s is inactive for %s seconds\n", client_id.c_str(), std::to_string(diff).c_str());
+      tcp_close_client_by_index(state, client_index);
+    }
+  } catch (...) {
+    printf("[Server] Poll error for %s\n", client_id.c_str());
+    tcp_close_client_by_index(state, client_index);
+  }
+
   return ERR_OK;
 }
 
@@ -204,7 +228,10 @@ static err_t tcp_server_accept(void *arg, struct tcp_pcb *client_pcb, err_t err)
     std::shared_ptr<TCP_CLIENT_T> client = std::make_shared<TCP_CLIENT_T>();
     state->clients[empty_index] = std::make_pair(client_id, client);
 
+    const u_int64_t now = get_datetime_ms();
+
     client->client_pcb = client_pcb;
+    client->last_ping = now;
     tcp_arg(client_pcb, state);
     tcp_sent(client_pcb, tcp_server_sent);
     tcp_recv(client_pcb, tcp_server_recv);
@@ -267,8 +294,12 @@ void start_tcp_server_module() {
   }
 
   while(state->opened) {
+#if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();
     sleep_ms(1);
+#else
+    tight_loop_contents();
+#endif
   }
 
   printf("[Server] Closed\n");
