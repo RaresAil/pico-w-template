@@ -172,7 +172,23 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 }
 
 static err_t tcp_server_poll(void *arg, struct tcp_pcb *tpcb) {
-  // TODO - Implement a PING packet to check if the client is still connected
+  TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+  const std::string client_id = get_tcp_client_id(tpcb);
+  const int client_index = index_of_tcp_client(state, client_id);
+
+  try {
+    std::shared_ptr<TCP_CLIENT_T> client = (state->clients[client_index]).second;
+    const u_int64_t now = get_datetime_ms();
+    const u_int64_t diff = (now - client->last_ping) / 1000;
+    if (diff > TCP_SERVER_INACTIVE_TIME_S) {
+      printf("[Server] Client %s is inactive for %s seconds\n", client_id.c_str(), std::to_string(diff).c_str());
+      tcp_close_client_by_index(state, client_index);
+    }
+  } catch (...) {
+    printf("[Server] Poll error for %s\n", client_id.c_str());
+    tcp_close_client_by_index(state, client_index);
+  }
+
   return ERR_OK;
 }
 
@@ -212,7 +228,10 @@ static err_t tcp_server_accept(void *arg, struct tcp_pcb *client_pcb, err_t err)
     std::shared_ptr<TCP_CLIENT_T> client = std::make_shared<TCP_CLIENT_T>();
     state->clients[empty_index] = std::make_pair(client_id, client);
 
+    const u_int64_t now = get_datetime_ms();
+
     client->client_pcb = client_pcb;
+    client->last_ping = now;
     tcp_arg(client_pcb, state);
     tcp_sent(client_pcb, tcp_server_sent);
     tcp_recv(client_pcb, tcp_server_recv);

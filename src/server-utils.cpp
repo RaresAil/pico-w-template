@@ -37,6 +37,7 @@ typedef struct TCP_CLIENT_T_ {
   uint8_t buffer_sent[TCP_SERVER_BUF_SIZE];
   uint8_t buffer_recv[TCP_SERVER_BUF_SIZE];
   u_int64_t last_packet_tt = 0;
+  u_int64_t last_ping = 0;
   struct tcp_pcb *client_pcb;
   int packet_len = -1;
   int data_len = 0;
