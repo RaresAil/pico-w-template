@@ -1,3 +1,5 @@
+#include "pico/multicore.h"
+#include "pico/stdlib.h"
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
 
@@ -44,18 +46,17 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
 
     json packet = {
       {"id", packet_id},
-      {"client_id", client_id}
+      {"client_id", client_id},
+      {"type", s_type}
     };
 
     switch (type) {
       case PACKET_TYPE::PING: {
-        packet["type"] = PACKET_TYPES(PACKET_TYPE::PING);
         tcp_server_send_data(arg, tpcb, packet.dump());
         return;
       }
       case PACKET_TYPE::INFO: {
         char country_code[2] = {COUNTRY_CODE_0, COUNTRY_CODE_1};
-        packet["type"] = PACKET_TYPES(PACKET_TYPE::INFO);
         packet["data"] = {
           {"uptime", to_ms_since_boot(get_absolute_time()) / 1000},
           {"country_code", std::string(country_code, 2)},
@@ -70,9 +71,19 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
         break;
     }
 
+    json body = {};
+    if (parsed_data.contains("body")) {
+      body = parsed_data["body"];
+    }
+
+    packet["data"] = service_handle_packet(body, type);
     tcp_server_send_data(arg, tpcb, packet.dump());
   } catch (...) {
     printf("[Handler] Failed to parse data from %s\n", client_id.c_str());
+
+    try {
+      tcp_server_send_data(arg, tpcb, create_error_packet(client_id, "Failed to parse data"));
+    } catch (...) {}
   }
 }
 

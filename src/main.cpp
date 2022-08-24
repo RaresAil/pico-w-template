@@ -4,15 +4,32 @@
 #include <stdio.h>
 #include <string>
 
-#include "./config.h"
-#include "./ntp.cpp"
-#include "./server.cpp"
-
 #ifndef INCLUDE_NLOHMANN_JSON_HPP_
 #include "nlohmann/json.hpp"
 
 using json = nlohmann::json;
 #endif
+
+#include "./config.h"
+
+#if SERVICE_TYPE == 1
+#include "./services/thermostat.cpp"
+#endif
+
+#include "./ntp.cpp"
+#include "./server.cpp"
+
+void core1_entry() {
+  printf("[Core][1] Starting core\n");
+
+  multicore_fifo_clear_irq();
+  irq_set_exclusive_handler(SIO_IRQ_PROC1, service_sio_irq);
+
+  irq_set_enabled(SIO_IRQ_PROC1, true);
+
+  printf("[Core][1] Starting service\n");
+  service_main();
+}
 
 bool led_blink_timer(struct repeating_timer *t) {
   try {
@@ -39,6 +56,8 @@ int main() {
 #endif
 
   printf("[Main] Booting up\n");
+
+  multicore_launch_core1(core1_entry);
 
   if (cyw43_arch_init_with_country(CYW43_COUNTRY(COUNTRY_CODE_0, COUNTRY_CODE_1, 0))) {
     add_repeating_timer_ms(2000, led_blink_timer, NULL, &timer);
