@@ -13,7 +13,6 @@ using json = nlohmann::json;
 #ifndef __HANDLER_CPP__
 #define __HANDLER_CPP__
 
-
 void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &data) {
   const std::string client_id = get_tcp_client_id(tpcb);
 

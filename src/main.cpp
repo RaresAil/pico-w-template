@@ -5,6 +5,7 @@
 #include <string>
 
 #include "./config.h"
+#include "./ntp.cpp"
 #include "./server.cpp"
 
 #ifndef INCLUDE_NLOHMANN_JSON_HPP_
@@ -18,7 +19,7 @@ bool led_blink_timer(struct repeating_timer *t) {
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, !cyw43_arch_gpio_get(CYW43_WL_GPIO_LED_PIN));
     return true;
   } catch (...) {
-    printf("Failed blinking status led\n");
+    printf("[Main] Failed blinking status led\n");
     return false;
   }
 }
@@ -34,27 +35,27 @@ int main() {
 
 #ifdef IS_DEBUG_MODE
   sleep_ms(2000);
-  printf("Debug Mode Enabled\n");
+  printf("[Main] Debug Mode Enabled\n");
 #endif
 
-  printf("Booting up\n");
+  printf("[Main] Booting up\n");
 
   if (cyw43_arch_init_with_country(CYW43_COUNTRY(COUNTRY_CODE_0, COUNTRY_CODE_1, 0))) {
     add_repeating_timer_ms(2000, led_blink_timer, NULL, &timer);
-    printf("WiFi init failed");
+    printf("[Main] WiFi init failed");
     return -1;
   }
 
-  printf("WiFi init success (Hostname: %s)\n", CYW43_HOST_NAME);
+  printf("[Main] WiFi init success (Hostname: %s)\n", CYW43_HOST_NAME);
 
   cyw43_arch_enable_sta_mode();
   add_repeating_timer_ms(500, led_blink_timer, NULL, &timer);
 
-  printf("WiFi connecting to (%s, %s)\n", WIFI_SSID, WIFI_PASSWORD);
+  printf("[Main] WiFi connecting to (%s, %s)\n", WIFI_SSID, WIFI_PASSWORD);
 
   while (connection_retries > 0) {
     if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, WIFI_AUTH, 8000)) {
-      printf("WiFi connection failed (%u/10)\n\n", connection_retries);
+      printf("[Main] WiFi connection failed (%u/10)\n\n", connection_retries);
       connection_retries--;
       sleep_ms(1000);
     } else {
@@ -66,14 +67,23 @@ int main() {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 
   if (connection_retries <= 0) {
-    printf("WiFi connection failed\n\n");
+    printf("[Main] WiFi connection failed\n\n");
     return -1;
   }
 
-  printf("WiFi connect success\n");
+  printf("[Main] WiFi connect success\n");
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
+  if (!setup_ntp()) {
+    printf("[Main] NTP setup failed\n");
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+    cyw43_arch_deinit();
+    return -1;
+  }
+
   start_tcp_server_module();
+
+  printf("[Main] Shuting down successfully\n");
 
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   cyw43_arch_deinit();

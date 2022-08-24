@@ -113,7 +113,7 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 
   cyw43_arch_lwip_check();
   if (p->tot_len > 0) {
-    const uint32_t now = to_ms_since_boot(get_absolute_time());
+    const u_int64_t now = get_datetime_ms();
     if (now - client->last_packet_tt > 1500) {
       client->packet_len = -1;
     }
@@ -267,8 +267,12 @@ void start_tcp_server_module() {
   }
 
   while(state->opened) {
+#if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();
     sleep_ms(1);
+#else
+    tight_loop_contents();
+#endif
   }
 
   printf("[Server] Closed\n");
