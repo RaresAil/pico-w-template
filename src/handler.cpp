@@ -30,31 +30,47 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
     const std::string s_type = parsed_data["type"].get<std::string>();
     const PACKET_TYPE type = packet_type_from_string(s_type);
 
+    if (type == PACKET_TYPE::UNKNOWN) {
+      return;
+    }
+
+    const u_int64_t now = get_datetime_ms();
+    client->last_ping = now;
+
+    uint packet_id = 0;
+    if (parsed_data.contains("id")) {
+      packet_id = parsed_data["id"].get<uint>();
+    }
+
+    json packet = {
+      {"id", packet_id},
+      {"client_id", client_id}
+    };
+
     switch (type) {
-      case PACKET_TYPE::UNKNOWN:
-        return;
       case PACKET_TYPE::PING: {
-        const u_int64_t now = get_datetime_ms();
-        client->last_ping = now;
-
-        json ping_packet = {
-          {"id", 0},
-          {"type", PACKET_TYPES(PACKET_TYPE::PING)},
-          {"client_id", client_id}
+        packet["type"] = PACKET_TYPES(PACKET_TYPE::PING);
+        tcp_server_send_data(arg, tpcb, packet.dump());
+        return;
+      }
+      case PACKET_TYPE::INFO: {
+        char country_code[2] = {COUNTRY_CODE_0, COUNTRY_CODE_1};
+        packet["type"] = PACKET_TYPES(PACKET_TYPE::INFO);
+        packet["data"] = {
+          {"uptime", to_ms_since_boot(get_absolute_time()) / 1000},
+          {"country_code", std::string(country_code, 2)},
+          {"firmware_version", FIRMWARE_VERSION},
+          {"serial_number", SERIAL_NUMBER},
+          {"ssid", WIFI_SSID}
         };
-
-        tcp_server_send_data(arg, tpcb, ping_packet.dump());
+        tcp_server_send_data(arg, tpcb, packet.dump());
         return;
       }
       default:
-        const u_int64_t now = get_datetime_ms();
-        client->last_ping = now;
         break;
     }
-    
-    printf("[Handler] JSON data: (%s)\n", parsed_data.dump().c_str());
 
-    tcp_server_send_data(arg, tpcb, parsed_data.dump());
+    tcp_server_send_data(arg, tpcb, packet.dump());
   } catch (...) {
     printf("[Handler] Failed to parse data from %s\n", client_id.c_str());
   }

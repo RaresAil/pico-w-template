@@ -7,7 +7,7 @@
  *  And modifed by me to fit the needs of the projecutc->
  * 
  * 
- *  Original file: https://github.com/raspberrypi/pico-examples/blob/master/pico_w/ntp_client/picow_ntp_clienutc->c
+ *  Original file: https://github.com/raspberrypi/pico-examples/blob/master/pico_w/ntp_client/picow_ntp_client.c
  **/
 
 #include <string.h>
