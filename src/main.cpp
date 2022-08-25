@@ -1,5 +1,6 @@
 #include "pico/cyw43_arch.h"
 #include "pico/multicore.h"
+#include "hardware/adc.h"
 #include "pico/stdlib.h"
 #include <stdio.h>
 #include <string>
@@ -40,6 +41,10 @@ int main() {
   stdio_set_translate_crlf(&stdio_usb, true);
   stdio_flush();
 
+  adc_init();
+  adc_set_temp_sensor_enabled(true);
+  adc_select_input(4);
+
   uint8_t connection_retries = 10;
   struct repeating_timer timer;
 
@@ -58,6 +63,7 @@ int main() {
     return -1;
   }
 
+  service.update_network("...");
   printf("[Main] WiFi init success (Hostname: %s)\n", CYW43_HOST_NAME);
 
   cyw43_arch_enable_sta_mode();
@@ -79,11 +85,13 @@ int main() {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 
   if (connection_retries <= 0) {
+    service.update_network("FAIL");
     printf("[Main] WiFi connection failed\n\n");
     return -1;
   }
 
   printf("[Main] WiFi connect success\n");
+  service.update_network("ON");
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
   if (!setup_ntp()) {

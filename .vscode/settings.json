@@ -61,5 +61,5 @@
     "typeinfo": "cpp",
     "valarray": "cpp"
   },
-  "cSpell.words": ["tpcb"]
+  "cSpell.words": ["multicore", "tpcb"]
 }

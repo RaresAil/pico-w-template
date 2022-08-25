@@ -4,7 +4,8 @@
 #include <stdio.h>
 #include <string>
 
-#include "./types.cpp"
+#include "types.cpp"
+#include "extras/Display.cpp"
 
 #ifndef INCLUDE_NLOHMANN_JSON_HPP_
 #include "nlohmann/json.hpp"
@@ -15,11 +16,13 @@ using json = nlohmann::json;
 #ifndef __SERVICE_CPP__
 #define __SERVICE_CPP__
 
-#define TRIGGER_INTERVAL_MS     300000
+#define TRIGGER_INTERVAL_MS     60000
+#define TEMPERATURE_CORRECTION  -6.0f
 
 class Thermostat {
   private:
     bool _ready = false;
+    // Trigger the update a second time for better accuracy
     bool alarm_triggered = true;
 
     struct repeating_timer timer;
@@ -36,25 +39,102 @@ class Thermostat {
     bool is_celsius = true;
     int humidity = 0;
 
+    /** Display **/
+    Display display;
+    std::string c_network = "";
+    std::string c_s_temp = "";
+    std::string c_heat = "";
+    bool c_winter = false;
+    int target_timeout = 5;
+    bool show_target_temp = false;
+    const unsigned char sun_icon[32] = {
+      0x01, 0x80, 0x01, 0x80, 0x20, 0x04, 0x10, 0x08, 0x03, 0xc0, 0x06, 0x60, 0x0c, 0x30, 0xc8, 0x13, 
+      0xc8, 0x13, 0x0c, 0x30, 0x06, 0x60, 0x03, 0xc0, 0x10, 0x08, 0x20, 0x04, 0x01, 0x80, 0x01, 0x80
+    };
+  
+    void trigger_display_update(const bool &heating) {
+      if (!this->_ready) {
+        return;
+      }
+
+      mutex_enter_blocking(&this->m_t_display);
+
+      const std::string s_temp_f = std::to_string(
+        this->show_target_temp ? this->target_temperature : this->temperature
+      );
+      std::istringstream iss_temp(s_temp_f);
+
+      std::string major_temp;
+      std::string minor_temp;
+      std::getline(iss_temp, major_temp, '.');
+      std::getline(iss_temp, minor_temp, '.');
+
+      minor_temp = minor_temp.substr(0, 1);
+
+      const std::string s_temp = 
+        major_temp + 
+        std::string(".") + 
+        minor_temp + 
+        std::string(" C");
+
+      const std::string heat = this->show_target_temp ? "Target Temp" : (heating  ? "HEAT" : "");
+
+      if (
+        this->c_network == this->display.get_network() &&
+        this->c_s_temp == s_temp &&
+        this->c_heat == heat &&
+        this->c_winter == this->get_winter_mode()
+      ) {
+        mutex_exit(&this->m_t_display);
+        return;
+      }
+
+      this->c_network = this->display.get_network();
+      this->c_s_temp = s_temp;
+      this->c_heat = heat;
+      this->c_winter = this->get_winter_mode();
+
+      this->display.update_display(
+        s_temp,
+        new uint8_t[2] { 29, 8 },
+        heat,
+        new uint8_t[2] { 0, 25 },
+        this->show_target_temp ? false : !this->c_winter,
+        this->sun_icon,
+        new uint8_t[2] { 111, 15 }
+      );
+      mutex_exit(&this->m_t_display);
+    }
+    /** Display **/
+
     void update_temperature() {
+      mutex_enter_blocking(&this->m_read_temp);
       printf("[Thermostat] Updating temperature\n");
+      const float conversion_factor = 3.3f / (1 << 12);
+
+      float adc = (float)adc_read() * conversion_factor;
+      float temp = 27.0f - (adc - 0.706f) / 0.001721f;
+
+      this->temperature = std::ceil((temp + TEMPERATURE_CORRECTION) * 10.0) / 10.0;
+      printf("[Thermostat] Temperature: %f - %f\n", this->temperature, temp);
+      mutex_exit(&this->m_read_temp);
     }
 
     static bool check(struct repeating_timer *rt) {
       try {
         Thermostat *instance = (Thermostat *)rt->user_data;
 
-        // if (instance->show_target_temp) {
-        //   if (instance->target_timeout <= 0) {
-        //     instance->show_target_temp = false;
-        //   } else {
-        //     instance->target_timeout--;
-        //   }
-        // }
+        if (instance->show_target_temp) {
+          if (instance->target_timeout <= 0) {
+            instance->show_target_temp = false;
+          } else {
+            instance->target_timeout--;
+          }
+        }
 
         const bool heating = instance->is_heating();
         // gpio_put(RELAY_GPIO_PIN, heating);
-        // instance->trigger_display_update(heating);
+        instance->trigger_display_update(heating);
       } catch (...) {
         printf("[Thermostat]:[ERROR]: While checking the heating mode\n");
       }
@@ -70,14 +150,23 @@ class Thermostat {
     }
   public:
     Thermostat() {
-      mutex_init(&m_read_temp);
-      mutex_init(&m_heating);
-      mutex_init(&m_t_display);
+      mutex_init(&this->m_read_temp);
+      mutex_init(&this->m_heating);
+      mutex_init(&this->m_t_display);
 
       printf("[Thermostat] Service starting\n");
     }
 
+    void update_network(const std::string& network) {
+      this->display.update_network(network);
+    }
+
+    void center_message(const std::string& message, const bool &freeze = false) {
+      this->display.center_message(message, freeze);
+    }
+
     void ready() {
+      this->display.setup();
       this->update_temperature();
 
       add_repeating_timer_ms(1000, Thermostat::check, this, &this->timer);
@@ -171,10 +260,10 @@ class Thermostat {
     }
 };
 
-Thermostat thermostat = Thermostat();
+Thermostat service = Thermostat();
 
 json service_handle_packet(const json &body, const PACKET_TYPE &type) {
-  if (!thermostat.is_ready()) {
+  if (!service.is_ready()) {
     return {};
   }
 
@@ -184,20 +273,20 @@ json service_handle_packet(const json &body, const PACKET_TYPE &type) {
     case PACKET_TYPE::SET: {
       double target_temperature = body.value(
         "target_temperature", 
-        thermostat.get_target_temperature()
+        service.get_target_temperature()
       );
       bool celsius = body.value(
         "celsius",
-        thermostat.get_is_celsius()
+        service.get_is_celsius()
       );
       bool winter = body.value(
         "winter",
-        thermostat.get_winter_mode()
+        service.get_winter_mode()
       );
 
-      thermostat.set_target_temperature(target_temperature);
-      thermostat.set_is_celsius(celsius);
-      thermostat.set_winter_mode(winter);
+      service.set_target_temperature(target_temperature);
+      service.set_is_celsius(celsius);
+      service.set_winter_mode(winter);
       break;
     }
     default:
@@ -205,20 +294,20 @@ json service_handle_packet(const json &body, const PACKET_TYPE &type) {
   }
 
   return {
-    {"target_temperature", thermostat.get_target_temperature()},
-    {"temperature", thermostat.get_temperature()},
-    {"celsius", thermostat.get_is_celsius()},
-    {"winter", thermostat.get_winter_mode()},
-    {"humidity", thermostat.get_humidity()},
-    {"heating", thermostat.is_heating()}
+    {"target_temperature", service.get_target_temperature()},
+    {"temperature", service.get_temperature()},
+    {"celsius", service.get_is_celsius()},
+    {"winter", service.get_winter_mode()},
+    {"humidity", service.get_humidity()},
+    {"heating", service.is_heating()}
   };
 }
 
 void service_main() {
-  thermostat.ready();
+  service.ready();
 
   while (true) {
-    thermostat.loop();
+    service.loop();
   }
 }
 
