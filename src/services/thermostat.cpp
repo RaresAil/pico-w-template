@@ -16,14 +16,19 @@ using json = nlohmann::json;
 #ifndef __SERVICE_CPP__
 #define __SERVICE_CPP__
 
-#define TRIGGER_INTERVAL_MS     60000
+#define TRIGGER_INTERVAL_MS     300000
 #define TEMPERATURE_CORRECTION  -6.0f
+
+#define PLUS_TEMP_GPIO_PIN      17
+#define MINUS_TEMP_GPIO_PIN     16
+#define RELAY_GPIO_PIN          15
 
 class Thermostat {
   private:
     bool _ready = false;
     // Trigger the update a second time for better accuracy
     bool alarm_triggered = true;
+    bool button_pressed = false;
 
     struct repeating_timer timer;
 
@@ -133,7 +138,7 @@ class Thermostat {
         }
 
         const bool heating = instance->is_heating();
-        // gpio_put(RELAY_GPIO_PIN, heating);
+        gpio_put(RELAY_GPIO_PIN, heating);
         instance->trigger_display_update(heating);
       } catch (...) {
         printf("[Thermostat]:[ERROR]: While checking the heating mode\n");
@@ -153,6 +158,15 @@ class Thermostat {
       mutex_init(&this->m_read_temp);
       mutex_init(&this->m_heating);
       mutex_init(&this->m_t_display);
+
+      gpio_init(PLUS_TEMP_GPIO_PIN);
+      gpio_set_dir(PLUS_TEMP_GPIO_PIN, GPIO_IN);
+      gpio_init(MINUS_TEMP_GPIO_PIN);
+      gpio_set_dir(MINUS_TEMP_GPIO_PIN, GPIO_IN);
+
+      gpio_init(RELAY_GPIO_PIN);
+      gpio_set_dir(RELAY_GPIO_PIN, GPIO_OUT);
+      gpio_put(RELAY_GPIO_PIN, 0);
 
       printf("[Thermostat] Service starting\n");
     }
@@ -179,6 +193,30 @@ class Thermostat {
     void loop() {
       if (!_ready) {
         return;
+      }
+
+      if (gpio_get(PLUS_TEMP_GPIO_PIN) && !gpio_get(MINUS_TEMP_GPIO_PIN)) {
+        if (!this->button_pressed) {
+          this->button_pressed = true;
+          this->change_target_temperature(this->target_temperature + 0.5);
+          this->target_timeout = 5;
+          this->show_target_temp = true;
+          this->trigger_display_update(false);
+
+          sleep_ms(50);
+        }
+      } else if (!gpio_get(PLUS_TEMP_GPIO_PIN) && gpio_get(MINUS_TEMP_GPIO_PIN)) {
+        if (!this->button_pressed) {
+          this->button_pressed = true;
+          this->change_target_temperature(this->target_temperature - 0.5);
+          this->target_timeout = 5;
+          this->show_target_temp = true;
+          this->trigger_display_update(false);
+
+          sleep_ms(50);
+        }
+      } else {
+        this->button_pressed = false;
       }
 
       if (this->alarm_triggered) {
