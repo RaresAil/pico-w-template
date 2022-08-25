@@ -20,14 +20,7 @@ using json = nlohmann::json;
 #include "./server.cpp"
 
 void core1_entry() {
-  printf("[Core][1] Starting core\n");
-
-  multicore_fifo_clear_irq();
-  irq_set_exclusive_handler(SIO_IRQ_PROC1, service_sio_irq);
-
-  irq_set_enabled(SIO_IRQ_PROC1, true);
-
-  printf("[Core][1] Starting service\n");
+  printf("[Main][Core-1] Starting core\n");
   service_main();
 }
 
