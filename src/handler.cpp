@@ -61,7 +61,7 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
           {"uptime", to_ms_since_boot(get_absolute_time()) / 1000},
           {"country_code", std::string(country_code, 2)},
           {"firmware_version", FIRMWARE_VERSION},
-          {"serial_number", SERIAL_NUMBER},
+          {"type", SERVICE_TYPE},
           {"ssid", WIFI_SSID}
         };
         tcp_server_send_data(arg, tpcb, packet.dump());

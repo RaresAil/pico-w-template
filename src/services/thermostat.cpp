@@ -198,7 +198,7 @@ class Thermostat {
       if (gpio_get(PLUS_TEMP_GPIO_PIN) && !gpio_get(MINUS_TEMP_GPIO_PIN)) {
         if (!this->button_pressed) {
           this->button_pressed = true;
-          this->change_target_temperature(this->target_temperature + 0.5);
+          this->set_target_temperature(this->target_temperature + 0.5);
           this->target_timeout = 5;
           this->show_target_temp = true;
           this->trigger_display_update(false);
@@ -208,7 +208,7 @@ class Thermostat {
       } else if (!gpio_get(PLUS_TEMP_GPIO_PIN) && gpio_get(MINUS_TEMP_GPIO_PIN)) {
         if (!this->button_pressed) {
           this->button_pressed = true;
-          this->change_target_temperature(this->target_temperature - 0.5);
+          this->set_target_temperature(this->target_temperature - 0.5);
           this->target_timeout = 5;
           this->show_target_temp = true;
           this->trigger_display_update(false);

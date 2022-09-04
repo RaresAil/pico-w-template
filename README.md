@@ -35,7 +35,6 @@ The packet format is `number_of_characters;data` e.g. `4;demo`
   #define COUNTRY_CODE_1                  'S'
 
   #define WIFI_AUTH                       CYW43_AUTH_WPA2_AES_PSK
-  #define SERIAL_NUMBER                   "any text you want"
   #define WIFI_PASSWORD                   "PASSWORD"
   #define FIRMWARE_VERSION                "0.1.0" // Your version
   #define WIFI_SSID                       "SSID"
