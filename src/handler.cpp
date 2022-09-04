@@ -39,9 +39,9 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
     const u_int64_t now = get_datetime_ms();
     client->last_ping = now;
 
-    uint packet_id = 0;
+    std::string packet_id = "";
     if (parsed_data.contains("id")) {
-      packet_id = parsed_data["id"].get<uint>();
+      packet_id = parsed_data["id"].get<std::string>();
     }
 
     json packet = {
