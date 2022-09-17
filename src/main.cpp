@@ -15,6 +15,8 @@ using json = nlohmann::json;
 
 #if SERVICE_TYPE == 1
 #include "./services/thermostat.cpp"
+#elif SERVICE_TYPE == 2
+#include "./services/desk.cpp"
 #endif
 
 #include "./ntp.cpp"
@@ -41,9 +43,11 @@ int main() {
   stdio_set_translate_crlf(&stdio_usb, true);
   stdio_flush();
 
+#if SERVICE_TYPE == 1
   adc_init();
   adc_set_temp_sensor_enabled(true);
   adc_select_input(4);
+#endif
 
   uint8_t connection_retries = 10;
   struct repeating_timer timer;
