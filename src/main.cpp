@@ -1,18 +1,29 @@
 #include "pico/cyw43_arch.h"
 #include "pico/multicore.h"
+#include "hardware/adc.h"
 #include "pico/stdlib.h"
 #include <stdio.h>
 #include <string>
-
-#include "./config.h"
-#include "./ntp.cpp"
-#include "./server.cpp"
 
 #ifndef INCLUDE_NLOHMANN_JSON_HPP_
 #include "nlohmann/json.hpp"
 
 using json = nlohmann::json;
 #endif
+
+#include "./config.h"
+
+#if SERVICE_TYPE == 1
+#include "./services/thermostat.cpp"
+#endif
+
+#include "./ntp.cpp"
+#include "./server.cpp"
+
+void core1_entry() {
+  printf("[Main][Core-1] Starting core\n");
+  service_main();
+}
 
 bool led_blink_timer(struct repeating_timer *t) {
   try {
@@ -30,6 +41,10 @@ int main() {
   stdio_set_translate_crlf(&stdio_usb, true);
   stdio_flush();
 
+  adc_init();
+  adc_set_temp_sensor_enabled(true);
+  adc_select_input(4);
+
   uint8_t connection_retries = 10;
   struct repeating_timer timer;
 
@@ -40,12 +55,15 @@ int main() {
 
   printf("[Main] Booting up\n");
 
+  multicore_launch_core1(core1_entry);
+
   if (cyw43_arch_init_with_country(CYW43_COUNTRY(COUNTRY_CODE_0, COUNTRY_CODE_1, 0))) {
     add_repeating_timer_ms(2000, led_blink_timer, NULL, &timer);
     printf("[Main] WiFi init failed");
     return -1;
   }
 
+  service.update_network("...");
   printf("[Main] WiFi init success (Hostname: %s)\n", CYW43_HOST_NAME);
 
   cyw43_arch_enable_sta_mode();
@@ -67,11 +85,13 @@ int main() {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 
   if (connection_retries <= 0) {
+    service.update_network("FAIL");
     printf("[Main] WiFi connection failed\n\n");
     return -1;
   }
 
   printf("[Main] WiFi connect success\n");
+  service.update_network("ON");
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
   if (!setup_ntp()) {

@@ -10,6 +10,16 @@
 #ifndef __SENDER_CPP__
 #define __SENDER_CPP__
 
+std::string create_error_packet(const std::string &client_id, const std::string &message) {
+  json packet = {
+    {"type", PACKET_TYPES(PACKET_TYPE::ERROR)},
+    {"client_id", client_id},
+    {"message", message}
+  };
+
+  return packet.dump();
+}
+
 std::string parse_data_to_be_sent(const std::string &data, const std::string &client_id) {
   std::string data_to_be_sent = data;
   if (USE_ENCRYPTION) {

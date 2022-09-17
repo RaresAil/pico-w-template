@@ -9,6 +9,8 @@ enum class PACKET_TYPE {
   SET,
   GET,
 
+  ERROR,
+
   UNKNOWN
 };
 
@@ -22,11 +24,14 @@ std::string PACKET_TYPES(const PACKET_TYPE& command) {
       return "PING";
     case PACKET_TYPE::INFO:
       return "INFO";
+    case PACKET_TYPE::ERROR:
+      return "ERROR";
     default:
       return "";
   }
 }
 
+// The ERROR packet can't be received by the server, but it can be sent by the server to the client.
 PACKET_TYPE packet_type_from_string(const std::string& value) {
   if (value == "SET") {
     return PACKET_TYPE::SET;
