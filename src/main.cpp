@@ -85,25 +85,30 @@ int main() {
     }
   }
 
-  cancel_repeating_timer(&timer);
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-
   if (connection_retries <= 0) {
+    cancel_repeating_timer(&timer);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+
     service.update_network("FAIL");
     printf("[Main] WiFi connection failed\n\n");
     return -1;
   }
 
   printf("[Main] WiFi connect success\n");
-  service.update_network("ON");
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+  service.update_network("NTP");
 
   if (!setup_ntp()) {
-    printf("[Main] NTP setup failed\n");
+    cancel_repeating_timer(&timer);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+
+    printf("[Main] NTP setup failed\n");
     cyw43_arch_deinit();
     return -1;
   }
+
+  service.update_network("ON");
+  cancel_repeating_timer(&timer);
+  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
   start_tcp_server_module();
 

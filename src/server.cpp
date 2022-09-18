@@ -89,86 +89,92 @@ static err_t tcp_server_sent(void *arg, struct tcp_pcb *tpcb, u16_t len) {
 }
 
 err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
-  TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
-  const std::string client_id = get_tcp_client_id(tpcb);
+  try {
+    TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+    const std::string client_id = get_tcp_client_id(tpcb);
 
-  if (err != 0) {
-    printf("[Server] Receiver error %d (%s)\n", err, client_id.c_str());
-  }
-
-  const int client_index = index_of_tcp_client(state, client_id);
-
-  if (client_index == -1) {
-    printf("[Server] Client %s not found\n", client_id.c_str());
-    tcp_close_client(tpcb);
-    return ERR_VAL;
-  }
-
-  if (!p) {
-    tcp_close_client_by_index(state, client_index);
-    return ERR_VAL;
-  }
-
-  std::shared_ptr<TCP_CLIENT_T> client = (state->clients[client_index]).second;
-
-  cyw43_arch_lwip_check();
-  if (p->tot_len > 0) {
-    const u_int64_t now = get_datetime_ms();
-    if (now - client->last_packet_tt > 1500) {
-      client->packet_len = -1;
+    if (err != 0) {
+      printf("[Server] Receiver error %d (%s)\n", err, client_id.c_str());
     }
 
-    client->last_packet_tt = now;
+    const int client_index = index_of_tcp_client(state, client_id);
+
+    if (client_index == -1) {
+      printf("[Server] Client %s not found\n", client_id.c_str());
+      tcp_close_client(tpcb);
+      return ERR_VAL;
+    }
+
+    if (!p) {
+      tcp_close_client_by_index(state, client_index);
+      return ERR_VAL;
+    }
+
+    std::shared_ptr<TCP_CLIENT_T> client = (state->clients[client_index]).second;
+
+    cyw43_arch_lwip_check();
+    if (p->tot_len > 0) {
+      const u_int64_t now = get_datetime_ms();
+      if (now - client->last_packet_tt > 1500) {
+        client->packet_len = -1;
+      }
+
+      client->last_packet_tt = now;
+
+      if (client->packet_len == -1) {
+        client->recv_len = 0;
+      }
+
+      printf("[Server] Received %d bytes (%d are from previous packets) from (%s)\n", p->tot_len, client->recv_len, client_id.c_str());
+
+      const uint16_t buffer_left = TCP_SERVER_BUF_SIZE - client->recv_len;
+      client->recv_len += pbuf_copy_partial(
+        p, client->buffer_recv + client->recv_len,
+        p->tot_len > buffer_left ? buffer_left : p->tot_len, 0\
+      );
+
+      tcp_recved(tpcb, p->tot_len);
+    }
 
     if (client->packet_len == -1) {
+      std::string partial_packet((char*)client->buffer_recv, client->recv_len);
+      std::string packet_length_s;
+
+      std::istringstream iss_input(partial_packet);
+      std::getline(iss_input, packet_length_s, ';');
+
+      if (packet_length_s != partial_packet) {
+        int packet_length = std::stoi(packet_length_s);
+        if (packet_length > 0) {
+          client->packet_len = packet_length + packet_length_s.size() + 1;
+          client->data_len = packet_length_s.size() + 1;
+        }
+      }
+    }
+    
+    if (client->recv_len >= client->packet_len) {
+      std::string packet((char*)client->buffer_recv, client->data_len, client->packet_len - client->data_len);
+
+      if (USE_ENCRYPTION) {
+        printf("[Server] Decrypting packet from %s\n", client_id.c_str());
+        packet = decrypt_256_aes_ctr(packet);
+      }
+
+      if (packet != "") {
+        handle_client_response(arg, tpcb, packet);
+      }
+
+      client->packet_len = -1;
       client->recv_len = 0;
     }
 
-    printf("[Server] Received %d bytes (%d are from previous packets) from (%s)\n", p->tot_len, client->recv_len, client_id.c_str());
-
-    const uint16_t buffer_left = TCP_SERVER_BUF_SIZE - client->recv_len;
-    client->recv_len += pbuf_copy_partial(
-      p, client->buffer_recv + client->recv_len,
-      p->tot_len > buffer_left ? buffer_left : p->tot_len, 0\
-    );
-
-    tcp_recved(tpcb, p->tot_len);
+    pbuf_free(p);
+    return ERR_OK;
+  } catch (const std::exception &e) {
+    printf("[Server] Exception: %s\n", e.what());
+    pbuf_free(p);
+    return ERR_VAL;
   }
-
-  if (client->packet_len == -1) {
-    std::string partial_packet((char*)client->buffer_recv, client->recv_len);
-    std::string packet_length_s;
-
-    std::istringstream iss_input(partial_packet);
-    std::getline(iss_input, packet_length_s, ';');
-
-    if (packet_length_s != partial_packet) {
-      int packet_length = std::stoi(packet_length_s);
-      if (packet_length > 0) {
-        client->packet_len = packet_length + packet_length_s.size() + 1;
-        client->data_len = packet_length_s.size() + 1;
-      }
-    }
-  }
-  
-  if (client->recv_len >= client->packet_len) {
-    std::string packet((char*)client->buffer_recv, client->data_len, client->packet_len - client->data_len);
-
-    if (USE_ENCRYPTION) {
-      printf("[Server] Decrypting packet from %s\n", client_id.c_str());
-      packet = decrypt_256_aes_ctr(packet);
-    }
-
-    if (packet != "") {
-      handle_client_response(arg, tpcb, packet);
-    }
-
-    client->packet_len = -1;
-    client->recv_len = 0;
-  }
-
-  pbuf_free(p);
-  return ERR_OK;
 }
 
 static err_t tcp_server_poll(void *arg, struct tcp_pcb *tpcb) {
