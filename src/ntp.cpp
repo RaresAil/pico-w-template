@@ -30,6 +30,9 @@ typedef struct NTP_T_ {
   struct udp_pcb *ntp_pcb;
   alarm_id_t ntp_resend_alarm;
   bool is_complete = false;
+
+  struct repeating_timer ntp_timer;
+  bool dns_failed_log = false;
 } NTP_T;
 
 #define NTP_SERVER "pool.ntp.org"
@@ -106,7 +109,10 @@ static void ntp_dns_found(const char *hostname, const ip_addr_t *ipaddr, void *a
     printf("[NTP] Address %s\n", ip4addr_ntoa(ipaddr));
     ntp_request(state);
   } else {
-    printf("[NTP] DNS request failed\n");
+    if (!state->dns_failed_log) {
+      printf("[NTP] DNS request failed\n");
+      state->dns_failed_log = true;
+    }
     ntp_result(state, -1, NULL);
   }
 }
@@ -153,14 +159,19 @@ static NTP_T* ntp_init(void) {
   return state;
 }
 
-bool setup_ntp() {
-  rtc_init();
-  NTP_T *state = ntp_init();
-  if (!state) {
-    return false;
-  }
+void clean_ntp(NTP_T *state) {
+  printf("[NTP] Free memory\n");
+  free(state);
+}
 
-  while (!state->is_complete) {
+static bool ntp_check(struct repeating_timer *rt) {
+  try {
+    NTP_T* state = (NTP_T*)rt->user_data;
+    if (state->is_complete) {
+      clean_ntp(state);
+      return false;
+    }
+
     if (!state->dns_request_sent) {
       state->ntp_resend_alarm = add_alarm_in_ms(NTP_RESEND_TIME, ntp_failed_handler, state, true);
 
@@ -172,19 +183,31 @@ bool setup_ntp() {
       if (err == ERR_OK) {
         ntp_request(state);
       } else if (err != ERR_INPROGRESS) {
-        printf("[NTP] DNS request failed\n");
+        if (!state->dns_failed_log) {
+          printf("[NTP] DNS request failed\n");
+          state->dns_failed_log = true;
+        }
+
         ntp_result(state, -1, NULL);
       }
     }
 
-#if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();
-    sleep_ms(1);
-#endif
+  } catch (...) {
+    printf("[NTP]:[ERROR]: In timer\n");
   }
 
-  printf("[NTP] Free memory\n");
-  free(state);
+  return true;
+}
+
+bool setup_ntp() {
+  rtc_init();
+  NTP_T *state = ntp_init();
+  if (!state) {
+    return false;
+  }
+
+  add_repeating_timer_ms(1000, ntp_check, state, &state->ntp_timer);
 
   return true;
 }
