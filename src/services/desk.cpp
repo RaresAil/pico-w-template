@@ -19,15 +19,16 @@ using json = nlohmann::json;
 #define RELAY_IN_01 17
 #define RELAY_IN_02 16
 
-#define BUTTON_DOWN 14
-#define BUTTON_UP 15
+#define BUTTON_DOWN 0
+#define BUTTON_UP 1
 
 #define MS_TO_REACH_MAX 10 * 1000 // Seconds to reach max
 
 class Desk {
   private:
     struct repeating_timer timer;
-    uint8_t _button_hold = 0;
+    uint32_t _button_press_at = 0;
+    int8_t _button_hold = -1;
     bool _ready = false;
 
     uint32_t stop_at = 0;
@@ -81,6 +82,8 @@ class Desk {
       this->hold_at = 0;
       this->set_target_height(diff);
       this->current_height = this->target_height;
+
+      printf("Current height: %d", this->current_height);
     }
 
     void check() {
@@ -128,27 +131,41 @@ class Desk {
           return;
         }
 
-        if (gpio_get(BUTTON_UP)) {
+        const uint32_t now = to_ms_since_boot(get_absolute_time());
+
+        if (gpio_get(BUTTON_UP) && !gpio_get(BUTTON_DOWN)) {
+          this->stop_at = 0;
+
           if (this->_button_hold != BUTTON_UP) {
             this->_button_hold = BUTTON_UP;
-            this->stop_at = 0;
+            this->_button_press_at = now;
 
             this->calculate_button_press_time(true);
-
             this->button_pressed(true, true);
           }
-        } else if (gpio_get(BUTTON_DOWN)) {
+        }
+        
+        if (gpio_get(BUTTON_DOWN) && !gpio_get(BUTTON_UP)) {
+          this->stop_at = 0;
+
           if (this->_button_hold != BUTTON_DOWN) {
             this->_button_hold = BUTTON_DOWN;
-            this->stop_at = 0;
+            this->_button_press_at = now;
 
             this->calculate_button_press_time(false);
             this->button_pressed(false, true);
           }
-        } else if (this->_button_hold != 0) {
+        }
+
+        if (
+          !gpio_get(BUTTON_DOWN) && 
+          !gpio_get(BUTTON_UP) && 
+          this->_button_hold >= 0 &&
+          (now - this->_button_press_at) > 5
+        ) {
           this->calculate_button_press_time(this->_button_hold == BUTTON_UP);
 
-          this->_button_hold = 0;
+          this->_button_hold = -1;
           this->button_reset();
         }
 
@@ -158,6 +175,10 @@ class Desk {
 
     // Setters
     void set_target_height(const uint16_t &height, const bool &set_movement = false) {
+      if (set_movement && this->_button_hold >= 0) {
+        return;
+      }
+
       if (height < 0) {
         this->target_height = 0;
       } else if (height > MS_TO_REACH_MAX) {
