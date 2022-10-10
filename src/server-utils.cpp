@@ -50,6 +50,8 @@ typedef struct TCP_SERVER_T_ {
   bool opened;
 } TCP_SERVER_T;
 
+TCP_SERVER_T *tcp_server_state;
+
 static std::string get_tcp_client_id(struct tcp_pcb *client) {
   return std::string(ip4addr_ntoa(&client->remote_ip)) + ":" + std::to_string(client->remote_port);
 }

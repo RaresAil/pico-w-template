@@ -29,6 +29,10 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
     const int client_index = index_of_tcp_client(state, client_id);
     std::shared_ptr<TCP_CLIENT_T> client = (state->clients[client_index]).second;
 
+    if (!parsed_data["type"].is_string()) {
+      return;
+    }
+
     const std::string s_type = parsed_data["type"].get<std::string>();
     const PACKET_TYPE type = packet_type_from_string(s_type);
 
@@ -40,7 +44,7 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
     client->last_ping = now;
 
     std::string packet_id = "";
-    if (parsed_data.contains("id")) {
+    if (parsed_data.contains("id") && parsed_data["id"].is_string()) {
       packet_id = parsed_data["id"].get<std::string>();
     }
 
