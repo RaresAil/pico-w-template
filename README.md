@@ -11,6 +11,7 @@ The current features of this template. For the defaults of the features check th
 - AES 256 CTR encryption
 - PING system
 - RTC
+- Method to send a message to all connected clients
 
 The `server.cpp` could stay untouched, for parsing the data you can just check `handler.cpp`, after the request is processed the data is sent to the handler along with the client from which you can respond back.
 

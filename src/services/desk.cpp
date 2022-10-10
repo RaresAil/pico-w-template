@@ -46,6 +46,10 @@ class Desk {
      */
     double current_height = 0;
 
+    void send_get_packet() {
+      send_get_packet_to_all(tcp_server_state, this->get_data());
+    }
+
     void button_reset() {
       this->stop_at = 0;
       gpio_put(RELAY_IN_01, 1);
@@ -102,6 +106,7 @@ class Desk {
       if (now >= this->stop_at) {
         this->button_reset();
         this->current_height = this->target_height;
+        this->send_get_packet();
       }
     }
 
@@ -186,6 +191,7 @@ class Desk {
 
           this->_button_hold = -1;
           this->button_reset();
+          this->send_get_packet();
         }
 
         this->check();
