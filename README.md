@@ -1,4 +1,13 @@
-### General
+## Examples
+
+This template includes example code for the following services
+
+> ### **WARNING, be careful on how you do your wiring or you might damage something**
+
+- Adjustable Desk with a 4 pin connector
+- Thermostat for a central heating unit
+
+## General
 
 The current features of this template. For the defaults of the features check the `Config` section
 
@@ -17,11 +26,11 @@ The `server.cpp` could stay untouched, for parsing the data you can just check `
 
 You can keep the connection alive in order to have real time responses
 
-### Packets
+## Packets
 
 The packet format is `number_of_characters;data` e.g. `4;demo`
 
-### Config file
+## Config file
 
 - Path: `src/config.h`
 - Code:
@@ -39,6 +48,12 @@ The packet format is `number_of_characters;data` e.g. `4;demo`
   #define WIFI_PASSWORD                   "PASSWORD"
   #define FIRMWARE_VERSION                "0.1.0" // Your version
   #define WIFI_SSID                       "SSID"
+
+  /**
+  * 1 - Thermostat
+  * 2 - Desk
+  */
+  #define SERVICE_TYPE                    2
 
   // TCP SERVER
 

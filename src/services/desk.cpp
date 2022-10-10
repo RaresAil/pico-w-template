@@ -80,8 +80,6 @@ class Desk {
       this->hold_at = 0;
       this->set_target_height(diff_percent);
       this->current_height = this->target_height;
-
-      printf("DIF height: D: %u - DP: %f - CH: %f (UP : %d)\n", diff, diff_percent, current_height, up);
     }
 
     double calculate_percent_diff(const uint16_t diff, const bool up) {
