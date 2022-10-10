@@ -77,4 +77,24 @@ err_t tcp_server_send_data(void *arg, struct tcp_pcb *tpcb, const std::string &d
   return ERR_OK;
 }
 
+void send_to_all_tcp_clients(TCP_SERVER_T *state, const std::string &data) {
+  for (int i = 0; i < TCP_SERVER_MAX_CLIENTS; i++) {
+    if (state->clients[i].first != "") {
+      try {
+        tcp_server_send_data(state, state->clients[i].second->client_pcb, data);
+      } catch (...) { }
+    }
+  }
+}
+
+void send_get_packet_to_all(TCP_SERVER_T *state, const json &data) {
+  json packet = {
+    {"type", PACKET_TYPES(PACKET_TYPE::GET)},
+    {"client_id", "server"},
+    {"data", data}
+  };
+
+  send_to_all_tcp_clients(state, packet.dump());
+}
+
 #endif

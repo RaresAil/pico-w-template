@@ -290,16 +290,16 @@ static bool tcp_server_open(void *arg) {
 }
 
 void start_tcp_server_module() {
-  TCP_SERVER_T *state = tcp_server_init();
-  if (!state) {
+  tcp_server_state = tcp_server_init();
+  if (!tcp_server_state) {
     return;
   }
 
-  if (!tcp_server_open(state)) {
+  if (!tcp_server_open(tcp_server_state)) {
     return;
   }
 
-  while(state->opened) {
+  while(tcp_server_state->opened) {
 #if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();
     sleep_ms(1);
@@ -309,7 +309,7 @@ void start_tcp_server_module() {
   }
 
   printf("[Server] Closed\n");
-  free(state);
+  free(tcp_server_state);
 }
 
 #endif

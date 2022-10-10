@@ -6,6 +6,7 @@
 
 #include "types.cpp"
 #include "server-utils.cpp"
+#include "sender.cpp"
 
 #ifndef INCLUDE_NLOHMANN_JSON_HPP_
 #include "nlohmann/json.hpp"
@@ -75,10 +76,12 @@ class Desk {
       this->hold_at = 0;
       this->set_target_height(diff_percent);
       this->current_height = this->target_height;
+
+      printf("DIF height: D: %u - DP: %f - CH: %f (UP : %d)\n", diff, diff_percent, current_height, up);
     }
 
     double calculate_percent_diff(const uint16_t diff, const bool up) {
-      double double_diff = std::stod(std::to_string(diff));
+      double double_diff = static_cast<double>(diff);
       double diff_percent = 0;
 
       if (up) {
@@ -257,6 +260,14 @@ class Desk {
 
       return 2;
     }
+
+    json get_data() {
+      return {
+        {"position_state", this->get_position_state()},
+        {"current_height", this->get_current_height()},
+        {"target_height", this->get_target_height()}
+      };
+    }
 };
 
 Desk service = Desk();
@@ -283,11 +294,7 @@ json service_handle_packet(const json &body, const PACKET_TYPE &type) {
         return {};
     }
 
-    return {
-      {"position_state", service.get_position_state()},
-      {"current_height", service.get_current_height()},
-      {"target_height", service.get_target_height()}
-    };
+    return service.get_data();
   } catch (...) {
     return {};
   }
