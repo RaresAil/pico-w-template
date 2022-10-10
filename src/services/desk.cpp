@@ -16,13 +16,14 @@ using json = nlohmann::json;
 #ifndef __SERVICE_CPP__
 #define __SERVICE_CPP__
 
-#define RELAY_IN_01 17
-#define RELAY_IN_02 16
+#define RELAY_IN_01 27
+#define RELAY_IN_02 26
 
 #define BUTTON_DOWN 0
 #define BUTTON_UP 1
 
-#define MS_TO_REACH_MAX 10 * 1000 // Seconds to reach max
+#define MS_TO_REACH_MAX_BOTTOM 10000.0
+#define MS_TO_REACH_MAX_TOP 15000.0
 
 class Desk {
   private:
@@ -31,17 +32,18 @@ class Desk {
     int8_t _button_hold = -1;
     bool _ready = false;
 
+    bool stop_at_up = false;
     uint32_t stop_at = 0;
     uint32_t hold_at = 0;
 
     /**
-     * The value is in microseconds to that position
+     * The value is in % to that position
      */
-    uint16_t target_height = 0;
+    double target_height = 0;
     /**
-     * The value is in microseconds to that position
+     * The value is in % to that position
      */
-    uint16_t current_height = 0;
+    double current_height = 0;
 
     void button_reset() {
       this->stop_at = 0;
@@ -60,30 +62,32 @@ class Desk {
       gpio_put(RELAY_IN_02, hold ? 0 : 1);
     }
 
-    void calculate_button_press_time(const bool up) {
-      if (this->hold_at == 0) {
+    void calculate_button_press_time(const bool up, const bool hold) {
+      if (hold) {
         this->hold_at = to_ms_since_boot(get_absolute_time());
         return;
       }
 
       const uint32_t now = to_ms_since_boot(get_absolute_time());
-      uint16_t diff = 0;
-
-      if (up) {
-        diff = (now - this->hold_at) + this->current_height;
-      } else {
-        if (this->current_height < (now - this->hold_at)) {
-          diff = 0;
-        } else {
-          diff = this->current_height - (now - this->hold_at);
-        }
-      }
+      uint16_t diff = now - this->hold_at;
+      double diff_percent = this->calculate_percent_diff(diff, up);
 
       this->hold_at = 0;
-      this->set_target_height(diff);
+      this->set_target_height(diff_percent);
       this->current_height = this->target_height;
+    }
 
-      printf("Current height: %d", this->current_height);
+    double calculate_percent_diff(const uint16_t diff, const bool up) {
+      double double_diff = std::stod(std::to_string(diff));
+      double diff_percent = 0;
+
+      if (up) {
+        diff_percent = ((double_diff / MS_TO_REACH_MAX_TOP) * 100.0) + this->current_height;
+      } else {
+        diff_percent = this->current_height - ((double_diff / MS_TO_REACH_MAX_BOTTOM) * 100.0);
+      }
+
+      return diff_percent;
     }
 
     void check() {
@@ -93,11 +97,21 @@ class Desk {
 
       const uint32_t now = to_ms_since_boot(get_absolute_time());
       if (now >= this->stop_at) {
-        const uint16_t diff = now - this->stop_at;
         this->button_reset();
-        this->set_target_height(this->target_height + diff);
         this->current_height = this->target_height;
       }
+    }
+
+    void complete_was_moving() {
+      const uint32_t now = to_ms_since_boot(get_absolute_time());
+      if (this->stop_at == 0 || now >= this->stop_at) {
+        return;
+      }
+
+      const uint16_t diff = this->stop_at - now;
+      double diff_percent = 100 - this->calculate_percent_diff(diff, this->stop_at_up);
+      this->set_target_height(diff_percent);
+      this->current_height = this->target_height;
     }
   public:
     void update_network(const std::string &network) {
@@ -134,25 +148,27 @@ class Desk {
         const uint32_t now = to_ms_since_boot(get_absolute_time());
 
         if (gpio_get(BUTTON_UP) && !gpio_get(BUTTON_DOWN)) {
+          this->complete_was_moving();
           this->stop_at = 0;
 
           if (this->_button_hold != BUTTON_UP) {
             this->_button_hold = BUTTON_UP;
             this->_button_press_at = now;
 
-            this->calculate_button_press_time(true);
+            this->calculate_button_press_time(true, true);
             this->button_pressed(true, true);
           }
         }
         
         if (gpio_get(BUTTON_DOWN) && !gpio_get(BUTTON_UP)) {
+          this->complete_was_moving();
           this->stop_at = 0;
 
           if (this->_button_hold != BUTTON_DOWN) {
             this->_button_hold = BUTTON_DOWN;
             this->_button_press_at = now;
 
-            this->calculate_button_press_time(false);
+            this->calculate_button_press_time(false, true);
             this->button_pressed(false, true);
           }
         }
@@ -163,7 +179,7 @@ class Desk {
           this->_button_hold >= 0 &&
           (now - this->_button_press_at) > 5
         ) {
-          this->calculate_button_press_time(this->_button_hold == BUTTON_UP);
+          this->calculate_button_press_time(this->_button_hold == BUTTON_UP, false);
 
           this->_button_hold = -1;
           this->button_reset();
@@ -174,36 +190,37 @@ class Desk {
     }
 
     // Setters
-    void set_target_height(const uint16_t &height, const bool &set_movement = false) {
+    void set_target_height(const double &height, const bool &set_movement = false) {
       if (set_movement && this->_button_hold >= 0) {
         return;
       }
 
       if (height < 0) {
         this->target_height = 0;
-      } else if (height > MS_TO_REACH_MAX) {
-        this->target_height = MS_TO_REACH_MAX;
+      } else if (height > 100) {
+        this->target_height = 100;
       } else {
         this->target_height = height;
       }
 
       if (set_movement) {
+        complete_was_moving();
+        this->stop_at = 0;
         uint8_t state = this->get_position_state();
-        if (state == 0) {
+        uint16_t diff = 0;
+
+        if (state == 0) { // Down
+          diff = static_cast<uint16_t>((this->current_height - this->target_height) / 100.0 * MS_TO_REACH_MAX_BOTTOM);
           this->button_pressed(false, true);
-        } else if (state == 1) {
+        } else if (state == 1) { // UP
+          diff = static_cast<uint16_t>((this->target_height - this->current_height) / 100.0 * MS_TO_REACH_MAX_TOP);
           this->button_pressed(true, true);
         } else {
           this->button_reset();
           return;
         }
 
-        uint16_t diff = 0;
-        if (this->current_height < this->target_height) {
-          diff = this->target_height - this->current_height;
-        } else {
-          diff = this->current_height - this->target_height;
-        }
+        this->stop_at_up = state == 1;
 
         const uint32_t now = to_ms_since_boot(get_absolute_time());
         this->stop_at = now + diff;
@@ -216,11 +233,11 @@ class Desk {
       return this->_ready;
     }
 
-    uint16_t get_target_height() {
+    double get_target_height() {
       return this->target_height;
     }
 
-    uint16_t get_current_height() {
+    double get_current_height() {
       return this->current_height;
     }
 
@@ -254,7 +271,7 @@ json service_handle_packet(const json &body, const PACKET_TYPE &type) {
       case PACKET_TYPE::GET:
         break;
       case PACKET_TYPE::SET: {
-        uint16_t target_height = body.value(
+        double target_height = body.value(
           "target_height", 
           service.get_target_height()
         );
