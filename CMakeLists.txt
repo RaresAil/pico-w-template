@@ -37,7 +37,12 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_compile_options(${PROJECT_NAME} PUBLIC "-Wno-psabi")
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
-pico_enable_stdio_usb(${PROJECT_NAME} 1)
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+  pico_enable_stdio_usb(${PROJECT_NAME} 1)
+else()
+  pico_enable_stdio_usb(${PROJECT_NAME} 0)
+endif()
+
 pico_enable_stdio_uart(${PROJECT_NAME} 0)
 
 # create map/bin/hex/uf2 files.
@@ -52,4 +57,6 @@ target_link_libraries(${PROJECT_NAME}
   hardware_rtc
   hardware_i2c
   hardware_adc
+  hardware_flash
+  hardware_sync
 )

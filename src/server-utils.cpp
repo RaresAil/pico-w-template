@@ -23,6 +23,9 @@
 #ifndef __SERVER_UTILS_CPP__
 #define __SERVER_UTILS_CPP__
 
+// For Flash
+bool save_to_flash = false;
+
 #include "Crypto/BlockCipher.cpp"
 #include "Crypto/AESCommon.cpp"
 #include "Crypto/Crypto.cpp"
