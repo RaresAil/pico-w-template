@@ -23,6 +23,7 @@ using json = nlohmann::json;
 #include "./server.cpp"
 
 void core1_entry() {
+  multicore_lockout_victim_init();
   printf("[Main][Core-1] Starting core\n");
   service_main();
 }
@@ -38,10 +39,12 @@ bool led_blink_timer(struct repeating_timer *t) {
 }
 
 int main() {
+#ifdef IS_DEBUG_MODE
   stdio_usb_init();
   stdio_filter_driver(&stdio_usb);
   stdio_set_translate_crlf(&stdio_usb, true);
   stdio_flush();
+#endif
 
 #if SERVICE_TYPE == 1
   adc_init();
@@ -58,6 +61,10 @@ int main() {
 #endif
 
   printf("[Main] Booting up\n");
+
+#ifdef __FLASH_CPP__
+  read_flash_data();
+#endif
 
   multicore_launch_core1(core1_entry);
 

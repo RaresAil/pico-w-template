@@ -21,6 +21,7 @@ The current features of this template. For the defaults of the features check th
 - PING system
 - RTC
 - Method to send a message to all connected clients
+- Method to save data to the flash of the board (256kb)
 
 The `server.cpp` could stay untouched, for parsing the data you can just check `handler.cpp`, after the request is processed the data is sent to the handler along with the client from which you can respond back.
 

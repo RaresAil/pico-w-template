@@ -25,6 +25,7 @@
 
 #include "./server-utils.cpp"
 #include "./handler.cpp"
+#include "./flash.cpp"
 
 #ifndef __SERVER_CPP__
 #define __SERVER_CPP__
@@ -300,6 +301,8 @@ void start_tcp_server_module() {
   }
 
   while(tcp_server_state->opened) {
+    flash_main_loop();
+
 #if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();
     sleep_ms(1);

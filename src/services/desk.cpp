@@ -17,6 +17,13 @@ using json = nlohmann::json;
 #ifndef __SERVICE_CPP__
 #define __SERVICE_CPP__
 
+struct FlashData {
+  double current_height;
+  char valid[6];
+};
+
+FlashData flash_data;
+
 #define RELAY_IN_01 27
 #define RELAY_IN_02 26
 
@@ -47,7 +54,12 @@ class Desk {
     double current_height = 0;
 
     void send_get_packet() {
+      flash_data.current_height = this->current_height;
+      memcpy(flash_data.valid, "VALID", 5);
+      flash_data.valid[5] = '\0';
+
       send_get_packet_to_all(tcp_server_state, this->get_data());
+      save_to_flash = true;
     }
 
     void button_reset() {
@@ -119,6 +131,10 @@ class Desk {
       this->set_target_height(diff_percent);
       this->current_height = this->target_height;
     }
+
+    bool is_valid_flash_data() {
+      return strcmp(flash_data.valid, "VALID") == 0;
+    }
   public:
     void update_network(const std::string &network) {
       // Do nothing because this service doesn't have a display
@@ -142,6 +158,11 @@ class Desk {
 
     void ready() {
       printf("[Desk] Service ready\n");
+      if (this->is_valid_flash_data()) {
+        this->current_height = flash_data.current_height;
+        this->target_height = this->current_height;
+      }
+
       this->_ready = true;
     }
 
