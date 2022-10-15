@@ -21,7 +21,8 @@ The current features of this template. For the defaults of the features check th
 - PING system
 - RTC
 - Method to send a message to all connected clients
-- Method to save data to the flash of the board (256kb)
+- Method to save data to the flash of the board `256kb`
+- Flash UID read at boot and stored in variable `FLASH_SERIAL_NUMBER` as `HEX`
 
 The `server.cpp` could stay untouched, for parsing the data you can just check `handler.cpp`, after the request is processed the data is sent to the handler along with the client from which you can respond back.
 
@@ -65,9 +66,8 @@ The packet format is `number_of_characters;data` e.g. `4;demo`
   #define TCP_SERVER_INACTIVE_TIME_S      35
 
   // ENCRYPTION
-
+  // To disable encryption do not define this variable
   #define AES_ENCRYPTION_KEY              "32-BYTES-KEY-IN-BASE64"
-  #define USE_ENCRYPTION                  true
 
   #endif
   ```

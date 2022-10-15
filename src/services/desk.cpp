@@ -30,8 +30,8 @@ FlashData flash_data;
 #define BUTTON_DOWN 0
 #define BUTTON_UP 1
 
-#define MS_TO_REACH_MAX_BOTTOM 10000.0
-#define MS_TO_REACH_MAX_TOP 15000.0
+#define MS_TO_REACH_MAX_BOTTOM 10500.0
+#define MS_TO_REACH_MAX_TOP 15500.0
 
 class Desk {
   private:
@@ -58,8 +58,8 @@ class Desk {
       memcpy(flash_data.valid, "VALID", 5);
       flash_data.valid[5] = '\0';
 
-      send_get_packet_to_all(tcp_server_state, this->get_data());
       save_to_flash = true;
+      send_get_packet_to_all(this->get_data());
     }
 
     void button_reset() {

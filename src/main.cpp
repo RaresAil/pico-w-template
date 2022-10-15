@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string>
 
+#include "./info.cpp"
+
 #ifndef INCLUDE_NLOHMANN_JSON_HPP_
 #include "nlohmann/json.hpp"
 
@@ -61,6 +63,8 @@ int main() {
 #endif
 
   printf("[Main] Booting up\n");
+
+  read_chip_uid();
 
 #ifdef __FLASH_CPP__
   read_flash_data();
