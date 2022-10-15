@@ -22,13 +22,14 @@ std::string create_error_packet(const std::string &client_id, const std::string 
 
 std::string parse_data_to_be_sent(const std::string &data, const std::string &client_id) {
   std::string data_to_be_sent = data;
-  if (USE_ENCRYPTION) {
-    printf("[Sender] Encrypting packet for %s\n", client_id.c_str());
-    data_to_be_sent = encrypt_256_aes_ctr(data);
 
-    if (data_to_be_sent == "") {
-      return "";
-    }
+#ifdef AES_ENCRYPTION_KEY
+  printf("[Sender] Encrypting packet for %s\n", client_id.c_str());
+  data_to_be_sent = encrypt_256_aes_ctr(data);
+#endif
+
+  if (data_to_be_sent == "") {
+    return "";
   }
 
   int data_length = data_to_be_sent.size();
@@ -89,15 +90,33 @@ void send_to_all_tcp_clients(TCP_SERVER_T *state, const std::string &data) {
   cyw43_arch_lwip_end();
 }
 
-void send_get_packet_to_all(TCP_SERVER_T *state, const json &data) {
-  json packet = {
-    {"type", PACKET_TYPES(PACKET_TYPE::GET)},
-    {"client_id", "server"},
-    {"data", data},
-    {"id", ""}
-  };
+uint32_t __data_last_sent_to_all_clients = 0;
+json __data_to_send_to_all_clients = {};
+bool __send_data_to_all_clients = false;
 
-  send_to_all_tcp_clients(state, packet.dump());
+void send_get_packet_to_all(const json &data) {
+  __data_to_send_to_all_clients = data;
+  __send_data_to_all_clients = true;
+}
+
+void sender_main_loop(TCP_SERVER_T *tcp_server_state) {
+  if (__send_data_to_all_clients) {
+    const uint32_t now = to_ms_since_boot(get_absolute_time());
+
+    // Add a timeout to prevent flash from being written too often
+    if (now - __data_last_sent_to_all_clients > 1000) {
+      __data_last_sent_to_all_clients = now;
+      __send_data_to_all_clients = false;
+
+      json packet = {
+        {"type", PACKET_TYPES(PACKET_TYPE::GET)},
+        {"client_id", "server"},
+        {"data", __data_to_send_to_all_clients}
+      };
+
+      send_to_all_tcp_clients(tcp_server_state, packet.dump());
+    }
+  }
 }
 
 #endif

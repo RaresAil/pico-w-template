@@ -156,10 +156,10 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
     if (client->recv_len >= client->packet_len) {
       std::string packet((char*)client->buffer_recv, client->data_len, client->packet_len - client->data_len);
 
-      if (USE_ENCRYPTION) {
-        printf("[Server] Decrypting packet from %s\n", client_id.c_str());
-        packet = decrypt_256_aes_ctr(packet);
-      }
+#ifdef AES_ENCRYPTION_KEY
+      printf("[Server] Decrypting packet from %s\n", client_id.c_str());
+      packet = decrypt_256_aes_ctr(packet);
+#endif
 
       if (packet != "") {
         handle_client_response(arg, tpcb, packet);
@@ -291,7 +291,7 @@ static bool tcp_server_open(void *arg) {
 }
 
 void start_tcp_server_module() {
-  tcp_server_state = tcp_server_init();
+  TCP_SERVER_T *tcp_server_state = tcp_server_init();
   if (!tcp_server_state) {
     return;
   }
@@ -302,6 +302,7 @@ void start_tcp_server_module() {
 
   while(tcp_server_state->opened) {
     flash_main_loop();
+    sender_main_loop(tcp_server_state);
 
 #if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();

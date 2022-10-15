@@ -65,7 +65,7 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
           {"uptime", to_ms_since_boot(get_absolute_time()) / 1000},
           {"country_code", std::string(country_code, 2)},
           {"firmware_version", FIRMWARE_VERSION},
-          {"serial_number", FLASH_SERIAL_NUMBER},
+          {"serial_number", __flash_uid_s},
           {"type", SERVICE_TYPE},
           {"ssid", WIFI_SSID}
         };

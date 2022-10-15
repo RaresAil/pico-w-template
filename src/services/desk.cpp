@@ -58,8 +58,8 @@ class Desk {
       memcpy(flash_data.valid, "VALID", 5);
       flash_data.valid[5] = '\0';
 
-      send_get_packet_to_all(tcp_server_state, this->get_data());
       save_to_flash = true;
+      send_get_packet_to_all(this->get_data());
     }
 
     void button_reset() {
