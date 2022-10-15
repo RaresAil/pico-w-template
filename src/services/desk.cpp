@@ -30,8 +30,8 @@ FlashData flash_data;
 #define BUTTON_DOWN 0
 #define BUTTON_UP 1
 
-#define MS_TO_REACH_MAX_BOTTOM 10000.0
-#define MS_TO_REACH_MAX_TOP 15000.0
+#define MS_TO_REACH_MAX_BOTTOM 10500.0
+#define MS_TO_REACH_MAX_TOP 15500.0
 
 class Desk {
   private:
