@@ -40,6 +40,7 @@ class Desk {
     int8_t _button_hold = -1;
     bool _ready = false;
 
+    uint32_t stop_at_start = 0;
     bool stop_at_up = false;
     uint32_t stop_at = 0;
     uint32_t hold_at = 0;
@@ -126,10 +127,10 @@ class Desk {
         return;
       }
 
-      const uint16_t diff = this->stop_at - now;
-      double diff_percent = 100 - this->calculate_percent_diff(diff, this->stop_at_up);
-      this->set_target_height(diff_percent);
-      this->current_height = this->target_height;
+      const uint16_t diff = now - this->stop_at_start;
+      double diff_percent = this->calculate_percent_diff(diff, this->stop_at_up);
+
+      this->current_height = diff_percent;
     }
 
     bool is_valid_flash_data() {
@@ -238,10 +239,10 @@ class Desk {
         uint16_t diff = 0;
 
         if (state == 0) { // Down
-          diff = static_cast<uint16_t>((this->current_height - this->target_height) / 100.0 * MS_TO_REACH_MAX_BOTTOM);
+          diff = static_cast<uint16_t>(((this->current_height - this->target_height) / 100.0) * MS_TO_REACH_MAX_BOTTOM);
           this->button_pressed(false, true);
         } else if (state == 1) { // UP
-          diff = static_cast<uint16_t>((this->target_height - this->current_height) / 100.0 * MS_TO_REACH_MAX_TOP);
+          diff = static_cast<uint16_t>(((this->target_height - this->current_height) / 100.0) * MS_TO_REACH_MAX_TOP);
           this->button_pressed(true, true);
         } else {
           this->button_reset();
@@ -251,6 +252,7 @@ class Desk {
         this->stop_at_up = state == 1;
 
         const uint32_t now = to_ms_since_boot(get_absolute_time());
+        this->stop_at_start = now;
         this->stop_at = now + diff;
       }
     }

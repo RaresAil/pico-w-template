@@ -103,11 +103,13 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
     if (client_index == -1) {
       printf("[Server] Client %s not found\n", client_id.c_str());
       tcp_close_client(tpcb);
+      pbuf_free(p);
       return ERR_VAL;
     }
 
     if (!p) {
       tcp_close_client_by_index(state, client_index);
+      pbuf_free(p);
       return ERR_VAL;
     }
 
@@ -159,6 +161,7 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 #ifdef AES_ENCRYPTION_KEY
       printf("[Server] Decrypting packet from %s\n", client_id.c_str());
       packet = decrypt_256_aes_ctr(packet);
+      printf("[Server] Packet decrypted from %s (%s)\n", client_id.c_str(), packet.c_str());
 #endif
 
       if (packet != "") {
@@ -290,6 +293,8 @@ static bool tcp_server_open(void *arg) {
   return true;
 }
 
+uint32_t last_wifi_check = 0;
+
 void start_tcp_server_module() {
   TCP_SERVER_T *tcp_server_state = tcp_server_init();
   if (!tcp_server_state) {
@@ -303,6 +308,31 @@ void start_tcp_server_module() {
   while(tcp_server_state->opened) {
     flash_main_loop();
     sender_main_loop(tcp_server_state);
+
+    const uint32_t now = to_ms_since_boot(get_absolute_time());
+
+    if (now - last_wifi_check > 10000) {
+      last_wifi_check = now;
+
+      const int status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+      switch(status) {
+        case CYW43_LINK_DOWN:
+        case CYW43_LINK_FAIL:
+        case CYW43_LINK_NONET:
+          printf("[Wifi-Check] WiFi down\n");
+          cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, WIFI_AUTH);
+          break;
+        case CYW43_LINK_BADAUTH:
+          printf("[Wifi-Check] WiFi bad auth\n");
+          break;
+        case CYW43_LINK_JOIN:
+          printf("[Wifi-Check] WiFi join\n");
+          break;
+        case CYW43_LINK_NOIP:
+          printf("[Wifi-Check] WiFi no IP\n");
+          break;
+      }
+    }
 
 #if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();

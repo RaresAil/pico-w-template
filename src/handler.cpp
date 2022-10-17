@@ -22,14 +22,15 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
   try {
     json parsed_data = json::parse(data);
     if (!parsed_data.contains("type")) {
+      printf("[Handler] Client %s sent invalid data: %s\n", client_id.c_str(), data.c_str());
       return;
     }
 
     TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
     const int client_index = index_of_tcp_client(state, client_id);
-    std::shared_ptr<TCP_CLIENT_T> client = (state->clients[client_index]).second;
 
     if (!parsed_data["type"].is_string()) {
+      printf("[Handler] Client %s sent invalid data: %s\n", client_id.c_str(), data.c_str());
       return;
     }
 
@@ -37,11 +38,12 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
     const PACKET_TYPE type = packet_type_from_string(s_type);
 
     if (type == PACKET_TYPE::UNKNOWN) {
+      printf("[Handler] Client %s sent invalid data: %s\n", client_id.c_str(), data.c_str());
       return;
     }
 
     const u_int64_t now = get_datetime_ms();
-    client->last_ping = now;
+    (state->clients[client_index]).second->last_ping = now;
 
     std::string packet_id = "";
     if (parsed_data.contains("id") && parsed_data["id"].is_string()) {
@@ -60,6 +62,7 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
         return;
       }
       case PACKET_TYPE::INFO: {
+        printf("[Handler] Sending INFO Packet to %s\n", client_id.c_str());
         char country_code[2] = {COUNTRY_CODE_0, COUNTRY_CODE_1};
         packet["data"] = {
           {"uptime", to_ms_since_boot(get_absolute_time()) / 1000},
@@ -69,7 +72,9 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
           {"type", SERVICE_TYPE},
           {"ssid", WIFI_SSID}
         };
+        printf("[Handler] INFO Packet prepared for %s\n", client_id.c_str());
         tcp_server_send_data(arg, tpcb, packet.dump());
+        printf("[Handler] INFO Packet sent to %s\n", client_id.c_str());
         return;
       }
       default:

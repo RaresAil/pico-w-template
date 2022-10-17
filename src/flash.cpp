@@ -19,21 +19,20 @@ uint32_t last_flash_write = 0;
 
 // Can only be called from core 0
 void save_flash_data() {
-  uint8_t* bytes = (uint8_t*) &flash_data;
-  int data_size = sizeof(flash_data);
-
-  printf("[Flash] Programming flash (Size: %d).\n", data_size);
+  printf("[Flash] Programming flash.\n");
 
   printf("[Flash] Requesting core 1 to lockout.\n");
   const bool locked = multicore_lockout_start_timeout_us(MULTICORE_LOCKOUT_TIMEOUT);
 
   if (locked) {
     printf("[Flash] Disable IRQ on core 0.\n");
+
     uint32_t interrupts = save_and_disable_interrupts();
     flash_range_erase(FLASH_TARGET_OFFSET, FLASH_SECTOR_SIZE);
-    flash_range_program(FLASH_TARGET_OFFSET, bytes, FLASH_PAGE_SIZE);
-    printf("[Flash] Restore IRQ on core 0\n");
+    flash_range_program(FLASH_TARGET_OFFSET, (uint8_t*) &flash_data, FLASH_PAGE_SIZE);
     restore_interrupts(interrupts);
+
+    printf("[Flash] Restore IRQ on core 0\n");
 
     printf("[Flash] Removing core 1 lockout.\n");
     bool unlocked = false;
