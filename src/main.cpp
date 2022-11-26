@@ -27,7 +27,12 @@ using json = nlohmann::json;
 void core1_entry() {
   multicore_lockout_victim_init();
   printf("[Main][Core-1] Starting core\n");
-  service_main();
+  
+  service.ready();
+
+  while (true) {
+    service.loop();
+  }
 }
 
 bool led_blink_timer(struct repeating_timer *t) {

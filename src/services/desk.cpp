@@ -327,12 +327,4 @@ json service_handle_packet(const json &body, const PACKET_TYPE &type) {
   }
 }
 
-void service_main() {
-  service.ready();
-
-  while (true) {
-    service.loop();
-  }
-}
-
 #endif
