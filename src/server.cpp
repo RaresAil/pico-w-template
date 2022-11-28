@@ -25,7 +25,6 @@
 
 #include "./server-utils.cpp"
 #include "./handler.cpp"
-#include "./flash.cpp"
 
 #ifndef __SERVER_CPP__
 #define __SERVER_CPP__
@@ -306,7 +305,6 @@ void start_tcp_server_module() {
   }
 
   while(tcp_server_state->opened) {
-    flash_main_loop();
     sender_main_loop(tcp_server_state);
 
     const uint32_t now = to_ms_since_boot(get_absolute_time());

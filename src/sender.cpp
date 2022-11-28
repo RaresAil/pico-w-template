@@ -108,7 +108,7 @@ void sender_main_loop(TCP_SERVER_T *tcp_server_state) {
   if (__send_data_to_all_clients) {
     const uint32_t now = to_ms_since_boot(get_absolute_time());
 
-    // Add a timeout to prevent flash from being written too often
+    // Add a timeout to prevent spamming
     if (now - __data_last_sent_to_all_clients > 1000) {
       __data_last_sent_to_all_clients = now;
       __send_data_to_all_clients = false;

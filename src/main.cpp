@@ -71,10 +71,6 @@ int main() {
 
   read_chip_uid();
 
-#ifdef __FLASH_CPP__
-  read_flash_data();
-#endif
-
   multicore_launch_core1(core1_entry);
 
   if (cyw43_arch_init_with_country(CYW43_COUNTRY(COUNTRY_CODE_0, COUNTRY_CODE_1, 0))) {
