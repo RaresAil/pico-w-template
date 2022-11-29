@@ -33,7 +33,11 @@ void core1_entry() {
   service.ready();
 
   while (true) {
-    service.loop();
+    #ifdef __HAS_LOOP
+      service.loop();
+    #else
+      tight_loop_contents();
+    #endif
   }
 }
 

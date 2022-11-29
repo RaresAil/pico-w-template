@@ -16,6 +16,8 @@ using json = nlohmann::json;
 #ifndef __SERVICE_CPP__
 #define __SERVICE_CPP__
 
+#define __HAS_LOOP
+
 #define TRIGGER_INTERVAL_MS     300000
 #define TEMPERATURE_CORRECTION  -6.0f
 
