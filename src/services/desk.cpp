@@ -123,7 +123,7 @@ class Desk {
       Desk *desk = static_cast<Desk *>(user_data);
       desk->moving_check_alarm = 0;
 
-      printf("Alarm callback called\n");
+      printf("[Desk] Alarm callback called\n");
 
       desk->button_reset();
       desk->current_height = desk->target_height;
