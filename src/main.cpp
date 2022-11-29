@@ -85,7 +85,9 @@ int main() {
     return -1;
   }
 
+#ifdef __HAS_UPDATE_NETWORK
   service.update_network("...");
+#endif
   printf("[Main] WiFi init success (Hostname: %s)\n", CYW43_HOST_NAME);
 
   cyw43_arch_enable_sta_mode();
@@ -107,13 +109,19 @@ int main() {
     cancel_repeating_timer(&timer);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 
+#ifdef __HAS_UPDATE_NETWORK
     service.update_network("FAIL");
+#endif
+
     printf("[Main] WiFi connection failed\n\n");
     return -1;
   }
 
   printf("[Main] WiFi connect success\n");
+
+#ifdef __HAS_UPDATE_NETWORK
   service.update_network("NTP");
+#endif
 
   if (!setup_ntp()) {
     cancel_repeating_timer(&timer);
@@ -124,7 +132,10 @@ int main() {
     return -1;
   }
 
+#ifdef __HAS_UPDATE_NETWORK
   service.update_network("ON");
+#endif
+
   cancel_repeating_timer(&timer);
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 

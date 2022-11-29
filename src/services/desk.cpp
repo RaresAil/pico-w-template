@@ -132,10 +132,6 @@ class Desk {
       return 0;
     }
   public:
-    void update_network(const std::string &network) {
-      // Do nothing because this service doesn't have a display
-    }
-
     Desk() {
       printf("[Desk] Service starting\n");
 
@@ -172,10 +168,6 @@ class Desk {
     void ready() {
       printf("[Desk] Service ready\n");
       this->_ready = true;
-    }
-
-    void loop() {
-
     }
 
     // Setters
