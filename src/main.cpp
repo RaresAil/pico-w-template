@@ -15,6 +15,8 @@ using json = nlohmann::json;
 
 #include "./config.h"
 
+alarm_pool_t* core_1_alarm_pool;
+
 #if SERVICE_TYPE == 1
 #include "./services/thermostat.cpp"
 #elif SERVICE_TYPE == 2
@@ -25,7 +27,7 @@ using json = nlohmann::json;
 #include "./server.cpp"
 
 void core1_entry() {
-  multicore_lockout_victim_init();
+  core_1_alarm_pool = alarm_pool_create(0, PICO_TIME_DEFAULT_ALARM_POOL_MAX_TIMERS);
   printf("[Main][Core-1] Starting core\n");
   
   service.ready();
