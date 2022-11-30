@@ -1,3 +1,4 @@
+#include "hardware/watchdog.h"
 #include "pico/cyw43_arch.h"
 #include "pico/multicore.h"
 #include "hardware/adc.h"
@@ -51,6 +52,17 @@ bool led_blink_timer(struct repeating_timer *t) {
   }
 }
 
+bool watchdog_callback(struct repeating_timer *t) {
+  try {
+    watchdog_update();
+    printf("[Main] Watchdog updated\n");
+    return true;
+  } catch (...) {
+    printf("[Main] Failed update watchdog\n");
+    return false;
+  }
+}
+
 int main() {
 #ifdef IS_DEBUG_MODE
   stdio_usb_init();
@@ -67,6 +79,7 @@ int main() {
 
   uint8_t connection_retries = 10;
   struct repeating_timer timer;
+  struct repeating_timer watchdog_timer;
 
 #ifdef IS_DEBUG_MODE
   sleep_ms(2000);
@@ -82,6 +95,7 @@ int main() {
   if (cyw43_arch_init_with_country(CYW43_COUNTRY(COUNTRY_CODE_0, COUNTRY_CODE_1, 0))) {
     add_repeating_timer_ms(2000, led_blink_timer, NULL, &timer);
     printf("[Main] WiFi init failed");
+    watchdog_reboot(0, 0, 5);
     return -1;
   }
 
@@ -114,6 +128,7 @@ int main() {
 #endif
 
     printf("[Main] WiFi connection failed\n\n");
+    watchdog_reboot(0, 0, 5);
     return -1;
   }
 
@@ -129,6 +144,7 @@ int main() {
 
     printf("[Main] NTP setup failed\n");
     cyw43_arch_deinit();
+    watchdog_reboot(0, 0, 5);
     return -1;
   }
 
@@ -139,11 +155,16 @@ int main() {
   cancel_repeating_timer(&timer);
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
+  // Start watchdog
+  watchdog_enable(8000, false);
+  add_repeating_timer_ms(5000, watchdog_callback, NULL, &watchdog_timer);
+
   start_tcp_server_module();
 
   printf("[Main] Shuting down successfully\n");
 
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   cyw43_arch_deinit();
+  watchdog_reboot(0, 0, 5);
   return 0;
 }
