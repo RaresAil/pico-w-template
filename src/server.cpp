@@ -30,7 +30,7 @@
 #define __SERVER_CPP__
 
 static TCP_SERVER_T* tcp_server_init(void) {
-  TCP_SERVER_T *state = (TCP_SERVER_T*)calloc(1, sizeof(TCP_SERVER_T));
+  TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(calloc(1, sizeof(TCP_SERVER_T)));
 
   if (!state) {
     printf("[Server] Failed to allocate state\n");
@@ -69,7 +69,7 @@ static void close_all_tcp_clients(TCP_SERVER_T *state) {
 static err_t tcp_server_close(void *arg) {
   printf("[Server] Closing the server\n");
 
-  TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+  TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(arg);
   state->opened = false;
   close_all_tcp_clients(state);
 
@@ -83,14 +83,14 @@ static err_t tcp_server_close(void *arg) {
 }
 
 static err_t tcp_server_sent(void *arg, struct tcp_pcb *tpcb, u16_t len) {
-  TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+  TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(arg);
   printf("[Server] %u bytes sent to client %s\n", len, get_tcp_client_id(tpcb).c_str());
   return ERR_OK;
 }
 
 err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
   try {
-    TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+    TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(arg);
     const std::string client_id = get_tcp_client_id(tpcb);
 
     if (err != 0) {
@@ -181,7 +181,7 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 }
 
 static err_t tcp_server_poll(void *arg, struct tcp_pcb *tpcb) {
-  TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+  TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(arg);
   const std::string client_id = get_tcp_client_id(tpcb);
   const int client_index = index_of_tcp_client(state, client_id);
 
@@ -210,7 +210,7 @@ static void tcp_server_err(void *arg, err_t err) {
 }
 
 static err_t tcp_server_accept(void *arg, struct tcp_pcb *client_pcb, err_t err) {
-  TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+  TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(arg);
 
   try {
     if (err != ERR_OK || client_pcb == NULL) {
@@ -258,7 +258,7 @@ static err_t tcp_server_accept(void *arg, struct tcp_pcb *client_pcb, err_t err)
 }
 
 static bool tcp_server_open(void *arg) {
-  TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+  TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(arg);
   printf("[Server] Starting (%s:%u)\n", ip4addr_ntoa(netif_ip4_addr(netif_list)), TCP_SERVER_PORT);
 
   struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_ANY);

@@ -26,7 +26,7 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
       return;
     }
 
-    TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+    TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(arg);
     const int client_index = index_of_tcp_client(state, client_id);
 
     if (!parsed_data["type"].is_string()) {

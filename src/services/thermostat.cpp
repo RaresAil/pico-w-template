@@ -130,7 +130,7 @@ class Thermostat {
 
     static bool check(struct repeating_timer *rt) {
       try {
-        Thermostat *instance = (Thermostat *)rt->user_data;
+        Thermostat *instance = static_cast<Thermostat*>(rt->user_data);
 
         if (instance->show_target_temp) {
           if (instance->target_timeout <= 0) {
@@ -151,7 +151,7 @@ class Thermostat {
     }
 
     static int64_t alarm_callback(alarm_id_t id, void *user_data) {
-      Thermostat *instance = (Thermostat *)user_data;
+      Thermostat *instance = static_cast<Thermostat*>(user_data);
       instance->alarm_triggered = true;
 
       return TRIGGER_INTERVAL_MS * 1000;

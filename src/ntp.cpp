@@ -86,7 +86,7 @@ static int64_t ntp_failed_handler(alarm_id_t id, void *user_data);
 static void ntp_request(NTP_T *state) {
   cyw43_arch_lwip_begin();
   struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, NTP_MSG_LEN, PBUF_RAM);
-  uint8_t *req = (uint8_t *) p->payload;
+  uint8_t *req = static_cast<uint8_t*>(p->payload);
   memset(req, 0, NTP_MSG_LEN);
   req[0] = 0x1b;
   udp_sendto(state->ntp_pcb, p, &state->ntp_server_address, NTP_PORT);
@@ -95,7 +95,7 @@ static void ntp_request(NTP_T *state) {
 }
 
 static int64_t ntp_failed_handler(alarm_id_t id, void *user_data) {
-    NTP_T* state = (NTP_T*)user_data;
+    NTP_T* state = static_cast<NTP_T*>(user_data);
     printf("[NTP] Request failed\n");
     ntp_result(state, -1, NULL);
     return 0;
@@ -103,7 +103,7 @@ static int64_t ntp_failed_handler(alarm_id_t id, void *user_data) {
 
 // Call back with a DNS result
 static void ntp_dns_found(const char *hostname, const ip_addr_t *ipaddr, void *arg) {
-  NTP_T *state = (NTP_T*)arg;
+  NTP_T *state = static_cast<NTP_T*>(arg);
   if (ipaddr) {
     state->ntp_server_address = *ipaddr;
     printf("[NTP] Address %s\n", ip4addr_ntoa(ipaddr));
@@ -119,7 +119,7 @@ static void ntp_dns_found(const char *hostname, const ip_addr_t *ipaddr, void *a
 
 // NTP data received
 static void ntp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
-  NTP_T *state = (NTP_T*)arg;
+  NTP_T *state = static_cast<NTP_T*>(arg);
   uint8_t mode = pbuf_get_at(p, 0) & 0x7;
   uint8_t stratum = pbuf_get_at(p, 1);
 
@@ -142,7 +142,7 @@ static void ntp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_ad
 
 // Perform initialisation
 static NTP_T* ntp_init(void) {
-  NTP_T *state = (NTP_T*)calloc(1, sizeof(NTP_T));
+  NTP_T *state = static_cast<NTP_T*>(calloc(1, sizeof(NTP_T)));
   if (!state) {
     printf("[NTP] Failed to allocate state\n");
     return NULL;
@@ -166,7 +166,7 @@ void clean_ntp(NTP_T *state) {
 
 static bool ntp_check(struct repeating_timer *rt) {
   try {
-    NTP_T* state = (NTP_T*)rt->user_data;
+    NTP_T* state = static_cast<NTP_T*>(rt->user_data);
     if (state->is_complete) {
       clean_ntp(state);
       return false;
