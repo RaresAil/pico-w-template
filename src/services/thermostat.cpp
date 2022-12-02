@@ -28,6 +28,10 @@ using json = nlohmann::json;
 
 class Thermostat {
   private:
+    constexpr static uint8_t C_POS[2] = { 29, 8 };
+    constexpr static uint8_t LB_POS[2] = { 0, 25 };
+    constexpr static uint8_t RB_POS[2] = { 111, 15 };
+
     bool _ready = false;
     // Trigger the update a second time for better accuracy
     bool alarm_triggered = true;
@@ -104,12 +108,12 @@ class Thermostat {
 
       this->display.update_display(
         s_temp,
-        new uint8_t[2] { 29, 8 },
+        Thermostat::C_POS,
         heat,
-        new uint8_t[2] { 0, 25 },
+        Thermostat::LB_POS,
         this->show_target_temp ? false : !this->c_winter,
         this->sun_icon,
-        new uint8_t[2] { 111, 15 }
+        Thermostat::RB_POS
       );
       mutex_exit(&this->m_t_display);
     }
