@@ -156,8 +156,8 @@ int main() {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
   // Start watchdog
-  watchdog_enable(8000, false);
-  add_repeating_timer_ms(5000, watchdog_callback, NULL, &watchdog_timer);
+  watchdog_enable(1750, false);
+  add_repeating_timer_ms(1000, watchdog_callback, NULL, &watchdog_timer);
 
   start_tcp_server_module();
 
