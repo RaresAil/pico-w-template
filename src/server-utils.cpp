@@ -23,9 +23,6 @@
 #ifndef __SERVER_UTILS_CPP__
 #define __SERVER_UTILS_CPP__
 
-// For Flash
-bool save_to_flash = false;
-
 #include "Crypto/BlockCipher.cpp"
 #include "Crypto/AESCommon.cpp"
 #include "Crypto/Crypto.cpp"
@@ -120,7 +117,7 @@ u_int64_t get_datetime_ms() {
 
 /* #region Encryption */
 
-u_int8_t* randomBytes(u_int8_t size) {
+std::unique_ptr<u_int8_t[]> randomBytes(u_int8_t size) {
   try {
     static std::default_random_engine randomEngine(get_datetime_ms());
     static std::uniform_int_distribution<u_int8_t> uniformDist(CHAR_MIN, CHAR_MAX);
@@ -130,7 +127,7 @@ u_int8_t* randomBytes(u_int8_t size) {
       return uniformDist(randomEngine);
     });
 
-    u_int8_t* buffer = new u_int8_t[size];
+    std::unique_ptr<u_int8_t[]> buffer = std::make_unique<u_int8_t[]>(size);
 
     for (u_int8_t i = 0; i < size; i++) {
       buffer[i] = u_int8_t(data[i]);
@@ -154,7 +151,7 @@ std::string encrypt_256_aes_ctr(const std::string& value) {
     u_int8_t key[32];
     memcpy(key, base64_decode(std::string(AES_ENCRYPTION_KEY)).c_str(), 32);
 
-    const u_int8_t* iv = randomBytes(16);
+    const u_int8_t* iv = randomBytes(16).release();
     if (iv == nullptr) {
       return "";
     }
@@ -169,7 +166,11 @@ std::string encrypt_256_aes_ctr(const std::string& value) {
     ctr.encrypt(output, plaintext, value.length());
     output[value.length()] = '\0';
 
-    return base64_encode(std::string(iv, iv + 16) + std::string(output, output + value.length()));
+    const std::string encrypted = base64_encode(std::string(iv, iv + 16) + std::string(output, output + value.length()));
+    delete [] iv;
+    iv = nullptr;
+
+    return encrypted;
   } catch (...) {
     return "";
   }

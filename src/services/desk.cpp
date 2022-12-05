@@ -17,13 +17,6 @@ using json = nlohmann::json;
 #ifndef __SERVICE_CPP__
 #define __SERVICE_CPP__
 
-struct FlashData {
-  double current_height;
-  char valid[6];
-};
-
-FlashData flash_data;
-
 #define RELAY_IN_01 27
 #define RELAY_IN_02 26
 
@@ -33,16 +26,18 @@ FlashData flash_data;
 #define MS_TO_REACH_MAX_BOTTOM 10500.0
 #define MS_TO_REACH_MAX_TOP 15500.0
 
+static void button_callback(uint gpio, uint32_t events);
+
 class Desk {
   private:
-    struct repeating_timer timer;
+    alarm_id_t moving_check_alarm;
+
     uint32_t _button_press_at = 0;
     int8_t _button_hold = -1;
     bool _ready = false;
 
     uint32_t stop_at_start = 0;
     bool stop_at_up = false;
-    uint32_t stop_at = 0;
     uint32_t hold_at = 0;
 
     /**
@@ -55,16 +50,10 @@ class Desk {
     double current_height = 0;
 
     void send_get_packet() {
-      flash_data.current_height = this->current_height;
-      memcpy(flash_data.valid, "VALID", 5);
-      flash_data.valid[5] = '\0';
-
-      save_to_flash = true;
       send_get_packet_to_all(this->get_data());
     }
 
     void button_reset() {
-      this->stop_at = 0;
       gpio_put(RELAY_IN_01, 1);
       gpio_put(RELAY_IN_02, 1);
     }
@@ -108,46 +97,65 @@ class Desk {
       return diff_percent;
     }
 
-    void check() {
-      if (this->stop_at == 0) {
+    void handle_ongoing_check() {
+      if (this->moving_check_alarm <= 0) {
         return;
       }
 
-      const uint32_t now = to_ms_since_boot(get_absolute_time());
-      if (now >= this->stop_at) {
-        this->button_reset();
-        this->current_height = this->target_height;
-        this->send_get_packet();
-      }
-    }
-
-    void complete_was_moving() {
-      const uint32_t now = to_ms_since_boot(get_absolute_time());
-      if (this->stop_at == 0 || now >= this->stop_at) {
+      if (!alarm_pool_cancel_alarm(core_1_alarm_pool, this->moving_check_alarm)) {
+        printf("[Desk] Failed to cancel check alarm\n");
+        this->moving_check_alarm = 0;
         return;
       }
 
+      printf("[Desk] Cancelled check alarm\n");
+
+      this->moving_check_alarm = 0;
+
+      const uint32_t now = to_ms_since_boot(get_absolute_time());
       const uint16_t diff = now - this->stop_at_start;
       double diff_percent = this->calculate_percent_diff(diff, this->stop_at_up);
 
       this->current_height = diff_percent;
     }
 
-    bool is_valid_flash_data() {
-      return strcmp(flash_data.valid, "VALID") == 0;
+    static int64_t check_alarm_callback(alarm_id_t id, void *user_data) {
+      Desk *desk = static_cast<Desk *>(user_data);
+      desk->moving_check_alarm = 0;
+
+      printf("[Desk] Alarm callback called\n");
+
+      desk->button_reset();
+      desk->current_height = desk->target_height;
+      desk->send_get_packet();
+
+      return 0;
     }
   public:
-    void update_network(const std::string &network) {
-      // Do nothing because this service doesn't have a display
-    }
-
     Desk() {
       printf("[Desk] Service starting\n");
 
       gpio_init(BUTTON_DOWN);
       gpio_set_dir(BUTTON_DOWN, GPIO_IN);
+
       gpio_init(BUTTON_UP);
       gpio_set_dir(BUTTON_UP, GPIO_IN);
+
+      gpio_set_irq_enabled_with_callback(
+        BUTTON_DOWN, 
+        GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL,
+        true,
+        button_callback
+      ); 
+      gpio_set_slew_rate(BUTTON_DOWN, GPIO_SLEW_RATE_SLOW);
+
+      gpio_set_irq_enabled_with_callback(
+        BUTTON_UP, 
+        GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL,
+        true,
+        button_callback
+      ); 
+      gpio_set_slew_rate(BUTTON_UP, GPIO_SLEW_RATE_SLOW);
 
       gpio_init(RELAY_IN_01);
       gpio_init(RELAY_IN_02);
@@ -159,63 +167,7 @@ class Desk {
 
     void ready() {
       printf("[Desk] Service ready\n");
-      if (this->is_valid_flash_data()) {
-        this->current_height = flash_data.current_height;
-        this->target_height = this->current_height;
-      }
-
       this->_ready = true;
-    }
-
-    void loop() {
-      try {
-        if (!this->_ready) {
-          return;
-        }
-
-        const uint32_t now = to_ms_since_boot(get_absolute_time());
-
-        if (gpio_get(BUTTON_UP) && !gpio_get(BUTTON_DOWN)) {
-          this->complete_was_moving();
-          this->stop_at = 0;
-
-          if (this->_button_hold != BUTTON_UP) {
-            this->_button_hold = BUTTON_UP;
-            this->_button_press_at = now;
-
-            this->calculate_button_press_time(true, true);
-            this->button_pressed(true, true);
-          }
-        }
-        
-        if (gpio_get(BUTTON_DOWN) && !gpio_get(BUTTON_UP)) {
-          this->complete_was_moving();
-          this->stop_at = 0;
-
-          if (this->_button_hold != BUTTON_DOWN) {
-            this->_button_hold = BUTTON_DOWN;
-            this->_button_press_at = now;
-
-            this->calculate_button_press_time(false, true);
-            this->button_pressed(false, true);
-          }
-        }
-
-        if (
-          !gpio_get(BUTTON_DOWN) && 
-          !gpio_get(BUTTON_UP) && 
-          this->_button_hold >= 0 &&
-          (now - this->_button_press_at) > 5
-        ) {
-          this->calculate_button_press_time(this->_button_hold == BUTTON_UP, false);
-
-          this->_button_hold = -1;
-          this->button_reset();
-          this->send_get_packet();
-        }
-
-        this->check();
-      } catch (...) { }
     }
 
     // Setters
@@ -233,8 +185,7 @@ class Desk {
       }
 
       if (set_movement) {
-        complete_was_moving();
-        this->stop_at = 0;
+        this->handle_ongoing_check();
         uint8_t state = this->get_position_state();
         uint16_t diff = 0;
 
@@ -250,10 +201,8 @@ class Desk {
         }
 
         this->stop_at_up = state == 1;
-
-        const uint32_t now = to_ms_since_boot(get_absolute_time());
-        this->stop_at_start = now;
-        this->stop_at = now + diff;
+        this->moving_check_alarm = alarm_pool_add_alarm_in_ms(core_1_alarm_pool, diff, Desk::check_alarm_callback, this, true);
+        this->stop_at_start = to_ms_since_boot(get_absolute_time());
       }
     }
 
@@ -295,9 +244,62 @@ class Desk {
         {"target_height", this->get_target_height()}
       };
     }
+
+    void button_handler() {
+      const uint32_t now = to_ms_since_boot(get_absolute_time());
+
+      if (gpio_get(BUTTON_UP) && !gpio_get(BUTTON_DOWN)) {
+        this->handle_ongoing_check();
+
+        if (this->_button_hold != BUTTON_UP) {
+          this->_button_hold = BUTTON_UP;
+          this->_button_press_at = now;
+
+          this->calculate_button_press_time(true, true);
+          this->button_pressed(true, true);
+        }
+      }
+      
+      if (gpio_get(BUTTON_DOWN) && !gpio_get(BUTTON_UP)) {
+        this->handle_ongoing_check();
+
+        if (this->_button_hold != BUTTON_DOWN) {
+          this->_button_hold = BUTTON_DOWN;
+          this->_button_press_at = now;
+
+          this->calculate_button_press_time(false, true);
+          this->button_pressed(false, true);
+        }
+      }
+
+      if (
+        !gpio_get(BUTTON_DOWN) && 
+        !gpio_get(BUTTON_UP) && 
+        this->_button_hold >= 0 &&
+        (now - this->_button_press_at) > 5
+      ) {
+        this->calculate_button_press_time(this->_button_hold == BUTTON_UP, false);
+
+        this->_button_hold = -1;
+        this->button_reset();
+        this->send_get_packet();
+      }
+    }
 };
 
 Desk service = Desk();
+
+static void button_callback(uint gpio, uint32_t events) {
+  if (gpio != BUTTON_DOWN && gpio != BUTTON_UP) {
+    return;
+  }
+
+  if (!service.is_ready()) {
+    return;
+  }
+
+  service.button_handler();
+}
 
 json service_handle_packet(const json &body, const PACKET_TYPE &type) {
   try {
@@ -324,14 +326,6 @@ json service_handle_packet(const json &body, const PACKET_TYPE &type) {
     return service.get_data();
   } catch (...) {
     return {};
-  }
-}
-
-void service_main() {
-  service.ready();
-
-  while (true) {
-    service.loop();
   }
 }
 

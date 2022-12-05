@@ -16,6 +16,9 @@ using json = nlohmann::json;
 #ifndef __SERVICE_CPP__
 #define __SERVICE_CPP__
 
+#define __HAS_LOOP
+#define __HAS_UPDATE_NETWORK
+
 #define TRIGGER_INTERVAL_MS     300000
 #define TEMPERATURE_CORRECTION  -6.0f
 
@@ -25,6 +28,10 @@ using json = nlohmann::json;
 
 class Thermostat {
   private:
+    constexpr static uint8_t C_POS[2] = { 29, 8 };
+    constexpr static uint8_t LB_POS[2] = { 0, 25 };
+    constexpr static uint8_t RB_POS[2] = { 111, 15 };
+
     bool _ready = false;
     // Trigger the update a second time for better accuracy
     bool alarm_triggered = true;
@@ -101,12 +108,12 @@ class Thermostat {
 
       this->display.update_display(
         s_temp,
-        new uint8_t[2] { 29, 8 },
+        Thermostat::C_POS,
         heat,
-        new uint8_t[2] { 0, 25 },
+        Thermostat::LB_POS,
         this->show_target_temp ? false : !this->c_winter,
         this->sun_icon,
-        new uint8_t[2] { 111, 15 }
+        Thermostat::RB_POS
       );
       mutex_exit(&this->m_t_display);
     }
@@ -127,7 +134,7 @@ class Thermostat {
 
     static bool check(struct repeating_timer *rt) {
       try {
-        Thermostat *instance = (Thermostat *)rt->user_data;
+        Thermostat *instance = static_cast<Thermostat*>(rt->user_data);
 
         if (instance->show_target_temp) {
           if (instance->target_timeout <= 0) {
@@ -148,7 +155,7 @@ class Thermostat {
     }
 
     static int64_t alarm_callback(alarm_id_t id, void *user_data) {
-      Thermostat *instance = (Thermostat *)user_data;
+      Thermostat *instance = static_cast<Thermostat*>(user_data);
       instance->alarm_triggered = true;
 
       return TRIGGER_INTERVAL_MS * 1000;
@@ -339,14 +346,6 @@ json service_handle_packet(const json &body, const PACKET_TYPE &type) {
     {"humidity", service.get_humidity()},
     {"heating", service.is_heating()}
   };
-}
-
-void service_main() {
-  service.ready();
-
-  while (true) {
-    service.loop();
-  }
 }
 
 #endif

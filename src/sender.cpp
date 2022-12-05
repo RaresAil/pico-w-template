@@ -24,7 +24,8 @@ std::string parse_data_to_be_sent(const std::string &data, const std::string &cl
   std::string data_to_be_sent = data;
 
 #ifdef AES_ENCRYPTION_KEY
-  printf("[Sender] Encrypting packet for %s\n", client_id.c_str());
+  printf("[Sender] Encrypting packet for %s, Raw Packet:\n", client_id.c_str());
+  printf("%s\n", data.c_str());
   data_to_be_sent = encrypt_256_aes_ctr(data);
 #endif
 
@@ -33,6 +34,7 @@ std::string parse_data_to_be_sent(const std::string &data, const std::string &cl
   }
 
   int data_length = data_to_be_sent.size();
+  printf("[Sender] Data length: %d\n", data_length);
   return std::to_string(data_length) + std::string(";") + data_to_be_sent;
 }
 
@@ -48,7 +50,7 @@ err_t tcp_server_send_data(void *arg, struct tcp_pcb *tpcb, const std::string &d
     return ERR_VAL;
   }
 
-  TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+  TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(arg);
 
   const int client_index = index_of_tcp_client(state, client_id);
 
@@ -61,9 +63,12 @@ err_t tcp_server_send_data(void *arg, struct tcp_pcb *tpcb, const std::string &d
   std::shared_ptr<TCP_CLIENT_T> client = (state->clients[client_index]).second;
 
   std::fill_n(client->buffer_sent, TCP_SERVER_BUF_SIZE, 0);
+
   for(int i = 0; i < data_to_be_sent.size(); i++) {
     client->buffer_sent[i] = (uint8_t)data_to_be_sent[i];
   }
+
+  client->buffer_sent[data_to_be_sent.size()] = (uint8_t)'\0';
 
   printf("[Sender] Writing %ld bytes to client (%s)\n", data_to_be_sent.size(), client_id.c_str());
 
@@ -103,7 +108,7 @@ void sender_main_loop(TCP_SERVER_T *tcp_server_state) {
   if (__send_data_to_all_clients) {
     const uint32_t now = to_ms_since_boot(get_absolute_time());
 
-    // Add a timeout to prevent flash from being written too often
+    // Add a timeout to prevent spamming
     if (now - __data_last_sent_to_all_clients > 1000) {
       __data_last_sent_to_all_clients = now;
       __send_data_to_all_clients = false;
