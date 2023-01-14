@@ -197,6 +197,10 @@ class Desk {
       gpio_put(RELAY_IN_02, 1);
     }
 
+    ~Desk() {
+      free(this->now_ptr);
+    }
+
     void ready() {
       printf("[Desk] Service ready\n");
       this->_ready = true;
