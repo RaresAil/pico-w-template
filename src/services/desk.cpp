@@ -34,8 +34,6 @@ class Desk {
   private:
     alarm_id_t moving_check_alarm;
 
-    uint32_t *now_ptr;
-
     uint32_t _button_press_at = 0;
     int8_t _button_hold = -1;
     bool _ready = false;
@@ -135,53 +133,9 @@ class Desk {
 
       return 0;
     }
-
-    void button_handler() {
-      *this->now_ptr = to_ms_since_boot(get_absolute_time());
-
-      if (gpio_get(BUTTON_UP) && !gpio_get(BUTTON_DOWN)) {
-        this->handle_ongoing_check();
-
-        if (this->_button_hold != BUTTON_UP) {
-          this->_button_hold = BUTTON_UP;
-          this->_button_press_at = *this->now_ptr;
-
-          this->calculate_button_press_time(true, true);
-          this->button_pressed(true, true);
-        }
-      }
-      
-      if (gpio_get(BUTTON_DOWN) && !gpio_get(BUTTON_UP)) {
-        this->handle_ongoing_check();
-
-        if (this->_button_hold != BUTTON_DOWN) {
-          this->_button_hold = BUTTON_DOWN;
-          this->_button_press_at = *this->now_ptr;
-
-          this->calculate_button_press_time(false, true);
-          this->button_pressed(false, true);
-        }
-      }
-
-      if (
-        !gpio_get(BUTTON_DOWN) && 
-        !gpio_get(BUTTON_UP) && 
-        this->_button_hold >= 0 &&
-        (*this->now_ptr - this->_button_press_at) > 5
-      ) {
-        this->calculate_button_press_time(this->_button_hold == BUTTON_UP, false);
-
-        this->_button_hold = -1;
-        this->button_reset();
-        this->send_get_packet();
-      }
-    }
   public:
     Desk() {
       printf("[Desk] Service starting\n");
-
-      this->now_ptr = static_cast<uint32_t*>(malloc(sizeof(uint32_t)));
-      assert(("now_ptr is not allocated!", this->now_ptr != NULL));
 
       gpio_init(BUTTON_DOWN);
       gpio_set_dir(BUTTON_DOWN, GPIO_IN);
@@ -197,21 +151,56 @@ class Desk {
       gpio_put(RELAY_IN_02, 1);
     }
 
-    ~Desk() {
-      free(this->now_ptr);
-    }
-
     void ready() {
       printf("[Desk] Service ready\n");
       this->_ready = true;
     }
 
     void loop() {
-      if (!this->is_ready()) {
-        return;
-      }
+      try {
+        if (!this->_ready) {
+          return;
+        }
 
-      this->button_handler();
+        const uint32_t now = to_ms_since_boot(get_absolute_time());
+
+        if (gpio_get(BUTTON_DOWN) && !gpio_get(BUTTON_UP)) {
+          this->handle_ongoing_check();
+
+          if (this->_button_hold != BUTTON_DOWN) {
+            this->_button_hold = BUTTON_DOWN;
+            this->_button_press_at = now;
+
+            this->calculate_button_press_time(false, true);
+            this->button_pressed(false, true);
+          }
+        }
+
+        if (!gpio_get(BUTTON_DOWN) && gpio_get(BUTTON_UP)) {
+          this->handle_ongoing_check();
+
+          if (this->_button_hold != BUTTON_UP) {
+            this->_button_hold = BUTTON_UP;
+            this->_button_press_at = now;
+
+            this->calculate_button_press_time(true, true);
+            this->button_pressed(true, true);
+          }
+        }
+        
+        if (
+          !gpio_get(BUTTON_DOWN) && 
+          !gpio_get(BUTTON_UP) && 
+          this->_button_hold >= 0 &&
+          (now - this->_button_press_at) > 5
+        ) {
+          this->calculate_button_press_time(this->_button_hold == BUTTON_UP, false);
+
+          this->_button_hold = -1;
+          this->button_reset();
+          this->send_get_packet();
+        }
+      } catch (...) { }
     }
 
     // Setters
