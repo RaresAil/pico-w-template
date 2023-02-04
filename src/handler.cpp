@@ -26,7 +26,7 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
       return;
     }
 
-    TCP_SERVER_T *state = (TCP_SERVER_T*)arg;
+    TCP_SERVER_T *state = static_cast<TCP_SERVER_T*>(arg);
     const int client_index = index_of_tcp_client(state, client_id);
 
     if (!parsed_data["type"].is_string()) {
@@ -65,8 +65,10 @@ void handle_client_response(void *arg, struct tcp_pcb *tpcb, const std::string &
         printf("[Handler] Sending INFO Packet to %s\n", client_id.c_str());
         char country_code[2] = {COUNTRY_CODE_0, COUNTRY_CODE_1};
         packet["data"] = {
+          {"watchdog_enable_reboot", watchdog_enable_caused_reboot()},
           {"uptime", to_ms_since_boot(get_absolute_time()) / 1000},
           {"country_code", std::string(country_code, 2)},
+          {"watchdog_reboot", watchdog_caused_reboot()},
           {"firmware_version", FIRMWARE_VERSION},
           {"serial_number", __flash_uid_s},
           {"type", SERVICE_TYPE},

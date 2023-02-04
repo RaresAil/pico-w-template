@@ -1,3 +1,4 @@
+#include "hardware/watchdog.h"
 #include "pico/cyw43_arch.h"
 #include "pico/multicore.h"
 #include "hardware/adc.h"
@@ -15,6 +16,8 @@ using json = nlohmann::json;
 
 #include "./config.h"
 
+alarm_pool_t* core_1_alarm_pool;
+
 #if SERVICE_TYPE == 1
 #include "./services/thermostat.cpp"
 #elif SERVICE_TYPE == 2
@@ -25,9 +28,18 @@ using json = nlohmann::json;
 #include "./server.cpp"
 
 void core1_entry() {
-  multicore_lockout_victim_init();
+  core_1_alarm_pool = alarm_pool_create(0, PICO_TIME_DEFAULT_ALARM_POOL_MAX_TIMERS);
   printf("[Main][Core-1] Starting core\n");
-  service_main();
+  
+  service.ready();
+
+  while (true) {
+    #ifdef __HAS_LOOP
+      service.loop();
+    #else
+      tight_loop_contents();
+    #endif
+  }
 }
 
 bool led_blink_timer(struct repeating_timer *t) {
@@ -36,6 +48,17 @@ bool led_blink_timer(struct repeating_timer *t) {
     return true;
   } catch (...) {
     printf("[Main] Failed blinking status led\n");
+    return false;
+  }
+}
+
+bool watchdog_callback(struct repeating_timer *t) {
+  try {
+    watchdog_update();
+    printf("[Main] Watchdog updated\n");
+    return true;
+  } catch (...) {
+    printf("[Main] Failed update watchdog\n");
     return false;
   }
 }
@@ -56,6 +79,7 @@ int main() {
 
   uint8_t connection_retries = 10;
   struct repeating_timer timer;
+  struct repeating_timer watchdog_timer;
 
 #ifdef IS_DEBUG_MODE
   sleep_ms(2000);
@@ -66,19 +90,18 @@ int main() {
 
   read_chip_uid();
 
-#ifdef __FLASH_CPP__
-  read_flash_data();
-#endif
-
   multicore_launch_core1(core1_entry);
 
   if (cyw43_arch_init_with_country(CYW43_COUNTRY(COUNTRY_CODE_0, COUNTRY_CODE_1, 0))) {
     add_repeating_timer_ms(2000, led_blink_timer, NULL, &timer);
     printf("[Main] WiFi init failed");
+    watchdog_reboot(0, 0, 5);
     return -1;
   }
 
+#ifdef __HAS_UPDATE_NETWORK
   service.update_network("...");
+#endif
   printf("[Main] WiFi init success (Hostname: %s)\n", CYW43_HOST_NAME);
 
   cyw43_arch_enable_sta_mode();
@@ -100,13 +123,20 @@ int main() {
     cancel_repeating_timer(&timer);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 
+#ifdef __HAS_UPDATE_NETWORK
     service.update_network("FAIL");
+#endif
+
     printf("[Main] WiFi connection failed\n\n");
+    watchdog_reboot(0, 0, 5);
     return -1;
   }
 
   printf("[Main] WiFi connect success\n");
+
+#ifdef __HAS_UPDATE_NETWORK
   service.update_network("NTP");
+#endif
 
   if (!setup_ntp()) {
     cancel_repeating_timer(&timer);
@@ -114,12 +144,20 @@ int main() {
 
     printf("[Main] NTP setup failed\n");
     cyw43_arch_deinit();
+    watchdog_reboot(0, 0, 5);
     return -1;
   }
 
+#ifdef __HAS_UPDATE_NETWORK
   service.update_network("ON");
+#endif
+
   cancel_repeating_timer(&timer);
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+
+  // Start watchdog
+  watchdog_enable(1750, false);
+  add_repeating_timer_ms(1000, watchdog_callback, NULL, &watchdog_timer);
 
   start_tcp_server_module();
 
@@ -127,5 +165,6 @@ int main() {
 
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   cyw43_arch_deinit();
+  watchdog_reboot(0, 0, 5);
   return 0;
 }
